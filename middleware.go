@@ -19,6 +19,20 @@ func (m *Middlewares) Prepend(action Action) {
 	m.actions = actions
 }
 
+func (m *Middlewares) Equals(other *Middlewares) bool {
+	if len(m.actions) != len(other.actions) {
+		return false
+	}
+
+	for i := range m.actions {
+		if m.actions[i] != other.actions[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (m *Middlewares) AppendToCopy(mids []Action) *Middlewares {
 	return NewMiddleware(append(m.actions, mids...)...)
 }
