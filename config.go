@@ -8,11 +8,12 @@ import (
 )
 
 type config struct {
-	processId    string
-	Namespace    string
-	PollInterval int
-	Pool         *redis.Pool
-	Fetch        func(queue string) Fetcher
+	processId         string
+	Namespace         string
+	PollInterval      int
+	Pool              *redis.Pool
+	Fetch             func(queue string) Fetcher
+	GlobalMiddlewares *Middlewares
 }
 
 func Configure(options map[string]string) (configObj *config) {
@@ -72,7 +73,10 @@ func Configure(options map[string]string) (configObj *config) {
 			},
 		},
 		nil,
+		nil,
 	}
+
+	configObj.GlobalMiddlewares = newDefaultMiddlewares(configObj)
 
 	// closes over configObj
 	configObj.Fetch = func(queue string) Fetcher {

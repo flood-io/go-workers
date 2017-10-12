@@ -19,6 +19,10 @@ func (m *Middlewares) Prepend(action Action) {
 	m.actions = actions
 }
 
+func (m *Middlewares) AppendToCopy(mids []Action) *Middlewares {
+	return NewMiddleware(append(m.actions, mids...)...)
+}
+
 func (m *Middlewares) call(queue string, message *Msg, final func()) bool {
 	return continuation(m.actions, queue, message, final)()
 }

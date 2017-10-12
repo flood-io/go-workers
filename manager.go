@@ -95,17 +95,6 @@ func (m *manager) reset() {
 }
 
 func newManager(config *config, queue string, job jobFunc, concurrency int, mids ...Action) *manager {
-	var customMids *Middlewares
-	defaultMiddlewares := newDefaultMiddlewares(config)
-
-	if len(mids) == 0 {
-		customMids = defaultMiddlewares
-	} else {
-		customMids = NewMiddleware(defaultMiddlewares.actions...)
-		for _, m := range mids {
-			customMids.Append(m)
-		}
-	}
 	m := &manager{
 		config,
 		config.Namespace + "queue:" + queue,
@@ -117,7 +106,7 @@ func newManager(config *config, queue string, job jobFunc, concurrency int, mids
 		make(chan *Msg),
 		make(chan bool),
 		make(chan bool),
-		customMids,
+		config.GlobalMiddlewares.AppendToCopy(mids),
 		&sync.WaitGroup{},
 	}
 

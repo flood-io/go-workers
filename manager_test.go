@@ -43,9 +43,8 @@ func ManagerSpec(c gospec.Context) {
 	})
 
 	config := mkDefaultConfig()
-	config.Namespace = "prod:"
 
-	defaultMiddlewares := newDefaultMiddlewares(config)
+	globalMiddlewares := config.GlobalMiddlewares
 
 	c.Specify("newManager", func() {
 		c.Specify("sets queue with namespace", func() {
@@ -65,19 +64,20 @@ func ManagerSpec(c gospec.Context) {
 
 		c.Specify("no per-manager middleware means 'use global Middleware object'", func() {
 			manager := newManager(config, "myqueue", testJob, 10)
-			c.Expect(manager.mids, Equals, defaultMiddlewares)
+			c.Expect(manager.mids.Equals(globalMiddlewares), IsTrue)
 		})
 
 		c.Specify("per-manager middlewares create separate middleware chains", func() {
 			mid1 := customMid{Base: "0"}
 			manager := newManager(config, "myqueue", testJob, 10, &mid1)
-			c.Expect(manager.mids, Not(Equals), defaultMiddlewares)
-			c.Expect(len(manager.mids.actions), Equals, len(defaultMiddlewares.actions)+1)
+			c.Expect(manager.mids, Not(Equals), globalMiddlewares)
+			c.Expect(len(manager.mids.actions), Equals, len(globalMiddlewares.actions)+1)
 		})
 
 	})
 
 	c.Specify("manage", func() {
+
 		conn := config.Pool.Get()
 		defer conn.Close()
 
@@ -102,9 +102,16 @@ func ManagerSpec(c gospec.Context) {
 		})
 
 		c.Specify("per-manager middlwares are called separately, global middleware is called in each manager", func() {
+			config := mkDefaultConfig()
+
+			conn := config.Pool.Get()
+			defer conn.Close()
+
 			mid1 := customMid{Base: "1"}
 			mid2 := customMid{Base: "2"}
 			mid3 := customMid{Base: "3"}
+
+			config.GlobalMiddlewares = NewMiddleware(&mid1)
 
 			// XXX fix?
 			// oldMiddleware := defaultMiddlewares
