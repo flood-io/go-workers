@@ -48,6 +48,6 @@ func mkDefaultConfig() *config {
 	return mkConfig(map[string]string{
 		"server":    "localhost:6379",
 		"process":   "1",
-		"namespace": "prod:",
+		"namespace": "prod",
 	})
 }
