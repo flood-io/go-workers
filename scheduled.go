@@ -8,6 +8,7 @@ import (
 )
 
 type scheduled struct {
+	config *config
 	keys   []string
 	closed chan bool
 	exit   chan bool
@@ -24,7 +25,7 @@ func (s *scheduled) start() {
 
 			s.poll()
 
-			time.Sleep(time.Duration(Config.PollInterval) * time.Second)
+			time.Sleep(time.Duration(s.config.PollInterval) * time.Second)
 		}
 	})()
 }
@@ -34,12 +35,12 @@ func (s *scheduled) quit() {
 }
 
 func (s *scheduled) poll() {
-	conn := Config.Pool.Get()
+	conn := s.config.Pool.Get()
 
 	now := nowToSecondsWithNanoPrecision()
 
 	for _, key := range s.keys {
-		key = Config.Namespace + key
+		key = s.config.Namespace + key
 		for {
 			messages, _ := redis.Strings(conn.Do("zrangebyscore", key, "-inf", now, "limit", 0, 1))
 
@@ -51,9 +52,9 @@ func (s *scheduled) poll() {
 
 			if removed, _ := redis.Bool(conn.Do("zrem", key, messages[0])); removed {
 				queue, _ := message.Get("queue").String()
-				queue = strings.TrimPrefix(queue, Config.Namespace)
+				queue = strings.TrimPrefix(queue, s.config.Namespace)
 				message.Set("enqueued_at", nowToSecondsWithNanoPrecision())
-				conn.Do("lpush", Config.Namespace+"queue:"+queue, message.ToJson())
+				conn.Do("lpush", s.config.Namespace+"queue:"+queue, message.ToJson())
 			}
 		}
 	}
@@ -61,6 +62,6 @@ func (s *scheduled) poll() {
 	conn.Close()
 }
 
-func newScheduled(keys ...string) *scheduled {
-	return &scheduled{keys, make(chan bool), make(chan bool)}
+func newScheduled(config *config, keys ...string) *scheduled {
+	return &scheduled{config, keys, make(chan bool), make(chan bool)}
 }

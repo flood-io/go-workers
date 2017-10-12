@@ -12,12 +12,14 @@ const (
 	LAYOUT            = "2006-01-02 15:04:05 MST"
 )
 
-type MiddlewareRetry struct{}
+type MiddlewareRetry struct {
+	config *config
+}
 
 func (r *MiddlewareRetry) Call(queue string, message *Msg, next func() bool) (acknowledge bool) {
 	defer func() {
 		if e := recover(); e != nil {
-			conn := Config.Pool.Get()
+			conn := r.config.Pool.Get()
 			defer conn.Close()
 
 			if retry(message) {
@@ -33,7 +35,7 @@ func (r *MiddlewareRetry) Call(queue string, message *Msg, next func() bool) (ac
 
 				_, err := conn.Do(
 					"zadd",
-					Config.Namespace+RETRY_KEY,
+					r.config.Namespace+RETRY_KEY,
 					nowToSecondsWithNanoPrecision()+waitDuration,
 					message.ToJson(),
 				)

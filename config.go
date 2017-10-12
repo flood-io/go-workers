@@ -15,9 +15,7 @@ type config struct {
 	Fetch        func(queue string) Fetcher
 }
 
-var Config *config
-
-func Configure(options map[string]string) {
+func Configure(options map[string]string) (configObj *config) {
 	var poolSize int
 	var namespace string
 	var pollInterval int
@@ -42,7 +40,7 @@ func Configure(options map[string]string) {
 
 	poolSize, _ = strconv.Atoi(options["pool"])
 
-	Config = &config{
+	configObj = &config{
 		options["process"],
 		namespace,
 		pollInterval,
@@ -73,8 +71,13 @@ func Configure(options map[string]string) {
 				return err
 			},
 		},
-		func(queue string) Fetcher {
-			return NewFetch(queue, make(chan *Msg), make(chan bool))
-		},
+		nil,
 	}
+
+	// closes over configObj
+	configObj.Fetch = func(queue string) Fetcher {
+		return NewFetch(configObj, queue, make(chan *Msg), make(chan bool))
+	}
+
+	return
 }

@@ -19,6 +19,7 @@ type Fetcher interface {
 }
 
 type fetch struct {
+	config       *config
 	queue        string
 	ready        chan bool
 	finishedwork chan bool
@@ -28,8 +29,9 @@ type fetch struct {
 	closed       chan bool
 }
 
-func NewFetch(queue string, messages chan *Msg, ready chan bool) Fetcher {
+func NewFetch(config *config, queue string, messages chan *Msg, ready chan bool) Fetcher {
 	return &fetch{
+		config,
 		queue,
 		ready,
 		make(chan bool),
@@ -88,7 +90,7 @@ func (f *fetch) handleMessages(messages chan string) {
 }
 
 func (f *fetch) tryFetchMessage(messages chan string) {
-	conn := Config.Pool.Get()
+	conn := f.config.Pool.Get()
 	defer conn.Close()
 
 	message, err := redis.String(conn.Do("brpoplpush", f.queue, f.inprogressQueue(), 1))
@@ -116,7 +118,7 @@ func (f *fetch) sendMessage(message string) {
 }
 
 func (f *fetch) Acknowledge(message *Msg) {
-	conn := Config.Pool.Get()
+	conn := f.config.Pool.Get()
 	defer conn.Close()
 	conn.Do("lrem", f.inprogressQueue(), -1, message.OriginalJson())
 }
@@ -148,7 +150,7 @@ func (f *fetch) Closed() bool {
 }
 
 func (f *fetch) inprogressMessages() []string {
-	conn := Config.Pool.Get()
+	conn := f.config.Pool.Get()
 	defer conn.Close()
 
 	messages, err := redis.Strings(conn.Do("lrange", f.inprogressQueue(), 0, -1))
@@ -160,5 +162,5 @@ func (f *fetch) inprogressMessages() []string {
 }
 
 func (f *fetch) inprogressQueue() string {
-	return fmt.Sprint(f.queue, ":", Config.processId, ":inprogress")
+	return fmt.Sprint(f.queue, ":", f.config.processId, ":inprogress")
 }

@@ -6,6 +6,7 @@ import (
 )
 
 type manager struct {
+	config      *config
 	queue       string
 	fetch       Fetcher
 	job         jobFunc
@@ -90,21 +91,24 @@ func (m *manager) queueName() string {
 }
 
 func (m *manager) reset() {
-	m.fetch = Config.Fetch(m.queue)
+	m.fetch = m.config.Fetch(m.queue)
 }
 
-func newManager(queue string, job jobFunc, concurrency int, mids ...Action) *manager {
+func newManager(config *config, queue string, job jobFunc, concurrency int, mids ...Action) *manager {
 	var customMids *Middlewares
+	defaultMiddlewares := newDefaultMiddlewares(config)
+
 	if len(mids) == 0 {
-		customMids = Middleware
+		customMids = defaultMiddlewares
 	} else {
-		customMids = NewMiddleware(Middleware.actions...)
+		customMids = NewMiddleware(defaultMiddlewares.actions...)
 		for _, m := range mids {
 			customMids.Append(m)
 		}
 	}
 	m := &manager{
-		Config.Namespace + "queue:" + queue,
+		config,
+		config.Namespace + "queue:" + queue,
 		nil,
 		job,
 		concurrency,
@@ -117,7 +121,7 @@ func newManager(queue string, job jobFunc, concurrency int, mids ...Action) *man
 		&sync.WaitGroup{},
 	}
 
-	m.fetch = Config.Fetch(m.queue)
+	m.fetch = config.Fetch(m.queue)
 
 	return m
 }

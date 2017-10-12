@@ -7,13 +7,13 @@ import (
 )
 
 func ScheduledSpec(c gospec.Context) {
-	scheduled := newScheduled(RETRY_KEY)
+	config := mkDefaultConfig()
+	config.Namespace = "prod:"
 
-	was := Config.Namespace
-	Config.Namespace = "prod:"
+	scheduled := newScheduled(config, RETRY_KEY)
 
 	c.Specify("empties retry queues up to the current time", func() {
-		conn := Config.Pool.Get()
+		conn := config.Pool.Get()
 		defer conn.Close()
 
 		now := nowToSecondsWithNanoPrecision()
@@ -36,6 +36,4 @@ func ScheduledSpec(c gospec.Context) {
 		c.Expect(myqueueCount, Equals, 1)
 		c.Expect(pending, Equals, 1)
 	})
-
-	Config.Namespace = was
 }

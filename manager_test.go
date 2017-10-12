@@ -42,48 +42,50 @@ func ManagerSpec(c gospec.Context) {
 		processed <- message.Args()
 	})
 
-	was := Config.Namespace
-	Config.Namespace = "prod:"
+	config := mkDefaultConfig()
+	config.Namespace = "prod:"
+
+	defaultMiddlewares := newDefaultMiddlewares(config)
 
 	c.Specify("newManager", func() {
 		c.Specify("sets queue with namespace", func() {
-			manager := newManager("myqueue", testJob, 10)
+			manager := newManager(config, "myqueue", testJob, 10)
 			c.Expect(manager.queue, Equals, "prod:queue:myqueue")
 		})
 
 		c.Specify("sets job function", func() {
-			manager := newManager("myqueue", testJob, 10)
+			manager := newManager(config, "myqueue", testJob, 10)
 			c.Expect(fmt.Sprint(manager.job), Equals, fmt.Sprint(testJob))
 		})
 
 		c.Specify("sets worker concurrency", func() {
-			manager := newManager("myqueue", testJob, 10)
+			manager := newManager(config, "myqueue", testJob, 10)
 			c.Expect(manager.concurrency, Equals, 10)
 		})
 
 		c.Specify("no per-manager middleware means 'use global Middleware object'", func() {
-			manager := newManager("myqueue", testJob, 10)
-			c.Expect(manager.mids, Equals, Middleware)
+			manager := newManager(config, "myqueue", testJob, 10)
+			c.Expect(manager.mids, Equals, defaultMiddlewares)
 		})
 
 		c.Specify("per-manager middlewares create separate middleware chains", func() {
 			mid1 := customMid{Base: "0"}
-			manager := newManager("myqueue", testJob, 10, &mid1)
-			c.Expect(manager.mids, Not(Equals), Middleware)
-			c.Expect(len(manager.mids.actions), Equals, len(Middleware.actions)+1)
+			manager := newManager(config, "myqueue", testJob, 10, &mid1)
+			c.Expect(manager.mids, Not(Equals), defaultMiddlewares)
+			c.Expect(len(manager.mids.actions), Equals, len(defaultMiddlewares.actions)+1)
 		})
 
 	})
 
 	c.Specify("manage", func() {
-		conn := Config.Pool.Get()
+		conn := config.Pool.Get()
 		defer conn.Close()
 
 		message, _ := NewMsg("{\"foo\":\"bar\",\"args\":[\"foo\",\"bar\"]}")
 		message2, _ := NewMsg("{\"foo\":\"bar2\",\"args\":[\"foo\",\"bar2\"]}")
 
 		c.Specify("coordinates processing of queue messages", func() {
-			manager := newManager("manager1", testJob, 10)
+			manager := newManager(config, "manager1", testJob, 10)
 
 			conn.Do("lpush", "prod:queue:manager1", message.ToJson())
 			conn.Do("lpush", "prod:queue:manager1", message2.ToJson())
@@ -104,13 +106,14 @@ func ManagerSpec(c gospec.Context) {
 			mid2 := customMid{Base: "2"}
 			mid3 := customMid{Base: "3"}
 
-			oldMiddleware := Middleware
-			Middleware = NewMiddleware()
-			Middleware.Append(&mid1)
+			// XXX fix?
+			// oldMiddleware := defaultMiddlewares
+			// Middleware = NewMiddleware()
+			// Middleware.Append(&mid1)
 
-			manager1 := newManager("manager1", testJob, 10)
-			manager2 := newManager("manager2", testJob, 10, &mid2)
-			manager3 := newManager("manager3", testJob, 10, &mid3)
+			manager1 := newManager(config, "manager1", testJob, 10)
+			manager2 := newManager(config, "manager2", testJob, 10, &mid2)
+			manager3 := newManager(config, "manager3", testJob, 10, &mid3)
 
 			conn.Do("lpush", "prod:queue:manager1", message.ToJson())
 			conn.Do("lpush", "prod:queue:manager2", message.ToJson())
@@ -124,7 +127,7 @@ func ManagerSpec(c gospec.Context) {
 			<-processed
 			<-processed
 
-			Middleware = oldMiddleware
+			// Middleware = oldMiddleware
 
 			c.Expect(
 				arrayCompare(mid1.Trace(), []string{"11", "12", "11", "12", "11", "12"}),
@@ -145,7 +148,7 @@ func ManagerSpec(c gospec.Context) {
 		})
 
 		c.Specify("prepare stops fetching new messages from queue", func() {
-			manager := newManager("manager2", testJob, 10)
+			manager := newManager(config, "manager2", testJob, 10)
 			manager.start()
 
 			manager.prepare()
@@ -159,6 +162,4 @@ func ManagerSpec(c gospec.Context) {
 			c.Expect(len, Equals, 2)
 		})
 	})
-
-	Config.Namespace = was
 }

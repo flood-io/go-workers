@@ -15,14 +15,16 @@ func myJob(message *Msg) {
 
 func WorkersSpec(c gospec.Context) {
 	c.Specify("Workers", func() {
+		config := mkDefaultConfig()
+
 		c.Specify("allows running in tests", func() {
 			called = make(chan bool)
 
-			Process("myqueue", myJob, 10)
+			Process(config, "myqueue", myJob, 10)
 
-			Start()
+			Start(config)
 
-			Enqueue("myqueue", "Add", []int{1, 2})
+			Enqueue(config, "myqueue", "Add", []int{1, 2})
 			<-called
 
 			Quit()
@@ -58,7 +60,7 @@ func WorkersSpec(c gospec.Context) {
 				hooks = append(hooks, "3")
 			})
 
-			Start()
+			Start(config)
 
 			c.Expect(reflect.DeepEqual(hooks, []string{"1", "2", "3"}), IsTrue)
 
@@ -81,7 +83,7 @@ func WorkersSpec(c gospec.Context) {
 				hooks = append(hooks, "3")
 			})
 
-			Start()
+			Start(config)
 
 			c.Expect(reflect.DeepEqual(hooks, []string{}), IsTrue)
 

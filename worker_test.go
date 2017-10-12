@@ -43,7 +43,10 @@ func WorkerSpec(c gospec.Context) {
 		processed <- message.Args()
 	})
 
-	manager := newManager("myqueue", testJob, 1)
+	config := mkDefaultConfig()
+	defaultMiddlewares := newDefaultMiddlewares(config)
+
+	manager := newManager(config, "myqueue", testJob, 1)
 
 	c.Specify("newWorker", func() {
 		c.Specify("it returns an instance of worker with connection to manager", func() {
@@ -83,7 +86,7 @@ func WorkerSpec(c gospec.Context) {
 		})
 
 		c.Specify("runs defined middleware and confirms", func() {
-			Middleware.Append(&testMiddleware{})
+			worker.manager.mids.Append(&testMiddleware{})
 
 			go worker.work(messages)
 			messages <- message
@@ -94,15 +97,11 @@ func WorkerSpec(c gospec.Context) {
 
 			worker.quit()
 
-			Middleware = NewMiddleware(
-				&MiddlewareLogging{},
-				&MiddlewareRetry{},
-				&MiddlewareStats{},
-			)
+			worker.manager.mids = defaultMiddlewares
 		})
 
 		c.Specify("doesn't confirm if middleware cancels acknowledgement", func() {
-			Middleware.Append(&failMiddleware{})
+			worker.manager.mids.Append(&failMiddleware{})
 
 			go worker.work(messages)
 			messages <- message
@@ -113,11 +112,7 @@ func WorkerSpec(c gospec.Context) {
 
 			worker.quit()
 
-			Middleware = NewMiddleware(
-				&MiddlewareLogging{},
-				&MiddlewareRetry{},
-				&MiddlewareStats{},
-			)
+			worker.manager.mids = defaultMiddlewares
 		})
 
 		c.Specify("recovers and confirms if job panics", func() {
@@ -125,7 +120,7 @@ func WorkerSpec(c gospec.Context) {
 				panic("AHHHHHHHHH")
 			})
 
-			manager := newManager("myqueue", panicJob, 1)
+			manager := newManager(config, "myqueue", panicJob, 1)
 			worker := newWorker(manager)
 
 			go worker.work(messages)

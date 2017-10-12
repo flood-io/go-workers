@@ -6,17 +6,19 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-func buildFetch(queue string) Fetcher {
-	manager := newManager(queue, nil, 1)
+func buildFetch(config *config, queue string) Fetcher {
+	manager := newManager(config, queue, nil, 1)
 	fetch := manager.fetch
 	go fetch.Fetch()
 	return fetch
 }
 
 func FetchSpec(c gospec.Context) {
+	config := mkDefaultConfig()
+
 	c.Specify("Config.Fetch", func() {
 		c.Specify("it returns an instance of fetch with queue", func() {
-			fetch := buildFetch("fetchQueue1")
+			fetch := buildFetch(config, "fetchQueue1")
 			c.Expect(fetch.Queue(), Equals, "queue:fetchQueue1")
 			fetch.Close()
 		})
@@ -26,9 +28,9 @@ func FetchSpec(c gospec.Context) {
 		message, _ := NewMsg("{\"foo\":\"bar\"}")
 
 		c.Specify("it puts messages from the queues on the messages channel", func() {
-			fetch := buildFetch("fetchQueue2")
+			fetch := buildFetch(config, "fetchQueue2")
 
-			conn := Config.Pool.Get()
+			conn := config.Pool.Get()
 			defer conn.Close()
 
 			conn.Do("lpush", "queue:fetchQueue2", message.ToJson())
@@ -45,9 +47,9 @@ func FetchSpec(c gospec.Context) {
 		})
 
 		c.Specify("places in progress messages on private queue", func() {
-			fetch := buildFetch("fetchQueue3")
+			fetch := buildFetch(config, "fetchQueue3")
 
-			conn := Config.Pool.Get()
+			conn := config.Pool.Get()
 			defer conn.Close()
 
 			conn.Do("lpush", "queue:fetchQueue3", message.ToJson())
@@ -65,9 +67,9 @@ func FetchSpec(c gospec.Context) {
 		})
 
 		c.Specify("removes in progress message when acknowledged", func() {
-			fetch := buildFetch("fetchQueue4")
+			fetch := buildFetch(config, "fetchQueue4")
 
-			conn := Config.Pool.Get()
+			conn := config.Pool.Get()
 			defer conn.Close()
 
 			conn.Do("lpush", "queue:fetchQueue4", message.ToJson())
@@ -89,9 +91,9 @@ func FetchSpec(c gospec.Context) {
 
 			c.Expect(json, Not(Equals), message.ToJson())
 
-			fetch := buildFetch("fetchQueue5")
+			fetch := buildFetch(config, "fetchQueue5")
 
-			conn := Config.Pool.Get()
+			conn := config.Pool.Get()
 			defer conn.Close()
 
 			conn.Do("lpush", "queue:fetchQueue5", json)
@@ -111,14 +113,14 @@ func FetchSpec(c gospec.Context) {
 			message2, _ := NewMsg("{\"foo\":\"bar2\"}")
 			message3, _ := NewMsg("{\"foo\":\"bar3\"}")
 
-			conn := Config.Pool.Get()
+			conn := config.Pool.Get()
 			defer conn.Close()
 
 			conn.Do("lpush", "queue:fetchQueue6:1:inprogress", message.ToJson())
 			conn.Do("lpush", "queue:fetchQueue6:1:inprogress", message2.ToJson())
 			conn.Do("lpush", "queue:fetchQueue6", message3.ToJson())
 
-			fetch := buildFetch("fetchQueue6")
+			fetch := buildFetch(config, "fetchQueue6")
 
 			fetch.Ready() <- true
 			c.Expect(<-fetch.Messages(), Equals, message2)

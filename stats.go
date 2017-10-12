@@ -15,7 +15,7 @@ type stats struct {
 	Retries   int64       `json:"retries"`
 }
 
-func Stats(w http.ResponseWriter, req *http.Request) {
+func Stats(config *config, w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -47,16 +47,16 @@ func Stats(w http.ResponseWriter, req *http.Request) {
 		0,
 	}
 
-	conn := Config.Pool.Get()
+	conn := config.Pool.Get()
 	defer conn.Close()
 
 	conn.Send("multi")
-	conn.Send("get", Config.Namespace+"stat:processed")
-	conn.Send("get", Config.Namespace+"stat:failed")
-	conn.Send("zcard", Config.Namespace+RETRY_KEY)
+	conn.Send("get", config.Namespace+"stat:processed")
+	conn.Send("get", config.Namespace+"stat:failed")
+	conn.Send("zcard", config.Namespace+RETRY_KEY)
 
 	for key, _ := range enqueued {
-		conn.Send("llen", fmt.Sprintf("%squeue:%s", Config.Namespace, key))
+		conn.Send("llen", fmt.Sprintf("%squeue:%s", config.Namespace, key))
 	}
 
 	r, err := conn.Do("exec")

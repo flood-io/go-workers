@@ -22,21 +22,23 @@ var control = make(map[string]chan string)
 var access sync.Mutex
 var started bool
 
-var Middleware = NewMiddleware(
-	&MiddlewareLogging{},
-	&MiddlewareRetry{},
-	&MiddlewareStats{},
-)
+func newDefaultMiddlewares(config *config) *Middlewares {
+	return NewMiddleware(
+		&MiddlewareLogging{},
+		&MiddlewareRetry{config},
+		&MiddlewareStats{config},
+	)
+}
 
-func Process(queue string, job jobFunc, concurrency int, mids ...Action) {
+func Process(config *config, queue string, job jobFunc, concurrency int, mids ...Action) {
 	access.Lock()
 	defer access.Unlock()
 
-	managers[queue] = newManager(queue, job, concurrency, mids...)
+	managers[queue] = newManager(config, queue, job, concurrency, mids...)
 }
 
-func Run() {
-	Start()
+func Run(config *config) {
+	Start(config)
 	go handleSignals()
 	waitForExit()
 }
@@ -54,7 +56,7 @@ func ResetManagers() error {
 	return nil
 }
 
-func Start() {
+func Start(config *config) {
 	access.Lock()
 	defer access.Unlock()
 
@@ -63,7 +65,7 @@ func Start() {
 	}
 
 	runHooks(beforeStart)
-	startSchedule()
+	startSchedule(config)
 	startManagers()
 
 	started = true
@@ -85,8 +87,11 @@ func Quit() {
 	started = false
 }
 
-func StatsServer(port int) {
-	http.HandleFunc("/stats", Stats)
+func StatsServer(config *config, port int) {
+	statsClosure := func(w http.ResponseWriter, req *http.Request) {
+		Stats(config, w, req)
+	}
+	http.HandleFunc("/stats", statsClosure)
 
 	Logger.Println("Stats are available at", fmt.Sprint("http://localhost:", port, "/stats"))
 
@@ -95,9 +100,9 @@ func StatsServer(port int) {
 	}
 }
 
-func startSchedule() {
+func startSchedule(config *config) {
 	if schedule == nil {
-		schedule = newScheduled(RETRY_KEY, SCHEDULED_JOBS_KEY)
+		schedule = newScheduled(config, RETRY_KEY, SCHEDULED_JOBS_KEY)
 	}
 
 	schedule.start()
