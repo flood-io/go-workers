@@ -76,16 +76,16 @@ func ConfigSpec(c gospec.Context) {
 
 	c.Specify("ConfigureFromURLString", func() {
 		c.Specify("parses url", func() {
-			extraOptions := map[string]string{"process": "1"}
-			config := ConfigureFromURLString("redis://localhost:6379/0?pool=24&poll_interval=42&namespace=spacedname", extraOptions)
+			config := ConfigureFromURLString("redis://localhost:6379/0?pool=24&poll_interval=42&namespace=spacedname&process=2")
 
 			c.Expect(config.PollInterval, Equals, 42)
 			c.Expect(config.Namespace(), Equals, "spacedname")
+			c.Expect(config.processId, Equals, "2")
 		})
 
 		c.Specify("parses url, overriding with extraOptions", func() {
 			extraOptions := map[string]string{"process": "321"}
-			config := ConfigureFromURLString("redis://localhost:6379/0?pool=24&poll_interval=42&namespace=spacedname&process=123", extraOptions)
+			config := ConfigureFromURLStringAndOverrides("redis://localhost:6379/0?pool=24&poll_interval=42&namespace=spacedname&process=123", extraOptions)
 
 			c.Expect(config.PollInterval, Equals, 42)
 			c.Expect(config.Namespace(), Equals, "spacedname")

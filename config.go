@@ -19,7 +19,7 @@ type config struct {
 	GlobalMiddlewares  *Middlewares
 }
 
-func ConfigureFromURLString(urlString string, extraOptions map[string]string) (configObj *config) {
+func ConfigureFromURLStringAndOverrides(urlString string, extraOptions map[string]string) (configObj *config) {
 	url, err := url.Parse(urlString)
 	if err != nil {
 		panic("Unable to parse redis url")
@@ -45,6 +45,10 @@ func ConfigureFromURLString(urlString string, extraOptions map[string]string) (c
 	}
 
 	return Configure(options)
+}
+
+func ConfigureFromURLString(urlString string) (configObj *config) {
+	return ConfigureFromURLStringAndOverrides(urlString, map[string]string{})
 }
 
 func Configure(options map[string]string) (configObj *config) {
