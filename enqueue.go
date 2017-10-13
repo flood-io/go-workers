@@ -73,11 +73,11 @@ func EnqueueWithOptions(config *config, queue, class string, args interface{}, o
 	conn := config.Pool.Get()
 	defer conn.Close()
 
-	_, err = conn.Do("sadd", config.Namespace+"queues", queue)
+	_, err = conn.Do("sadd", config.NamespacedKey("queues"), queue)
 	if err != nil {
 		return "", err
 	}
-	queue = config.Namespace + "queue:" + queue
+	queue = config.NamespacedKey("queue", queue)
 	_, err = conn.Do("rpush", queue, bytes)
 	if err != nil {
 		return "", err
@@ -92,7 +92,7 @@ func enqueueAt(config *config, at float64, bytes []byte) error {
 
 	_, err := conn.Do(
 		"zadd",
-		config.Namespace+SCHEDULED_JOBS_KEY, at, bytes,
+		config.NamespacedKey(SCHEDULED_JOBS_KEY), at, bytes,
 	)
 	if err != nil {
 		return err

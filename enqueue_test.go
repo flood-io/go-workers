@@ -12,7 +12,6 @@ func EnqueueSpec(c gospec.Context) {
 
 	c.Specify("Enqueue", func() {
 		config := mkDefaultConfig()
-		config.Namespace = "prod:"
 
 		conn := config.Pool.Get()
 		defer conn.Close()
@@ -91,7 +90,6 @@ func EnqueueSpec(c gospec.Context) {
 
 	c.Specify("EnqueueIn", func() {
 		config := mkDefaultConfig()
-		config.Namespace = "prod:"
 
 		scheduleQueue := "prod:" + SCHEDULED_JOBS_KEY
 		conn := config.Pool.Get()

@@ -2,23 +2,24 @@ package workers
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
 )
 
 type config struct {
-	processId         string
-	Namespace         string
-	PollInterval      int
-	Pool              *redis.Pool
-	Fetch             func(queue string) Fetcher
-	GlobalMiddlewares *Middlewares
+	processId          string
+	namespace          string
+	namespaceWithColon string
+	PollInterval       int
+	Pool               *redis.Pool
+	Fetch              func(queue string) Fetcher
+	GlobalMiddlewares  *Middlewares
 }
 
 func Configure(options map[string]string) (configObj *config) {
 	var poolSize int
-	var namespace string
 	var pollInterval int
 
 	if options["server"] == "" {
@@ -30,9 +31,6 @@ func Configure(options map[string]string) (configObj *config) {
 	if options["pool"] == "" {
 		options["pool"] = "1"
 	}
-	if options["namespace"] != "" {
-		namespace = options["namespace"] + ":"
-	}
 	if seconds, err := strconv.Atoi(options["poll_interval"]); err == nil {
 		pollInterval = seconds
 	} else {
@@ -43,7 +41,8 @@ func Configure(options map[string]string) (configObj *config) {
 
 	configObj = &config{
 		options["process"],
-		namespace,
+		"",
+		"",
 		pollInterval,
 		&redis.Pool{
 			MaxIdle:     poolSize,
@@ -76,6 +75,8 @@ func Configure(options map[string]string) (configObj *config) {
 		nil,
 	}
 
+	configObj.SetNamespace(options["namespace"])
+
 	configObj.GlobalMiddlewares = newDefaultMiddlewares(configObj)
 
 	// closes over configObj
@@ -84,4 +85,26 @@ func Configure(options map[string]string) (configObj *config) {
 	}
 
 	return
+}
+
+func (c *config) GetNamespace() string {
+	return c.namespace
+}
+
+func (c *config) SetNamespace(newNamespace string) {
+	if newNamespace == "" {
+		c.namespace = ""
+		c.namespaceWithColon = ""
+	} else {
+		c.namespace = strings.TrimSuffix(newNamespace, ":")
+		c.namespaceWithColon = c.namespace + ":"
+	}
+}
+
+func (c *config) NamespacedKey(keys ...string) string {
+	return c.namespaceWithColon + strings.Join(keys, ":")
+}
+
+func (c *config) TrimKeyNamespace(key string) string {
+	return strings.TrimPrefix(key, c.namespaceWithColon)
 }

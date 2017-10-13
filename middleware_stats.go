@@ -30,8 +30,8 @@ func incrementStats(config *config, metric string) {
 	today := time.Now().UTC().Format("2006-01-02")
 
 	conn.Send("multi")
-	conn.Send("incr", config.Namespace+"stat:"+metric)
-	conn.Send("incr", config.Namespace+"stat:"+metric+":"+today)
+	conn.Send("incr", config.NamespacedKey("stat", metric))
+	conn.Send("incr", config.NamespacedKey("stat", metric, today))
 
 	if _, err := conn.Do("exec"); err != nil {
 		Logger.Println("couldn't save stats:", err)

@@ -8,7 +8,7 @@ import (
 
 func ScheduledSpec(c gospec.Context) {
 	config := mkDefaultConfig()
-	config.Namespace = "prod:"
+	config.SetNamespace("prod:")
 
 	scheduled := newScheduled(config, RETRY_KEY)
 

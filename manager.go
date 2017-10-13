@@ -97,7 +97,7 @@ func (m *manager) reset() {
 func newManager(config *config, queue string, job jobFunc, concurrency int, mids ...Action) *manager {
 	m := &manager{
 		config,
-		config.Namespace + "queue:" + queue,
+		config.NamespacedKey("queue", queue),
 		nil,
 		job,
 		concurrency,

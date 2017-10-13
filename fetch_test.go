@@ -15,7 +15,7 @@ func buildFetch(config *config, queue string) Fetcher {
 
 func FetchSpec(c gospec.Context) {
 	config := mkDefaultConfig()
-	config.Namespace = ""
+	config.SetNamespace("")
 
 	c.Specify("Config.Fetch", func() {
 		c.Specify("it returns an instance of fetch with queue", func() {

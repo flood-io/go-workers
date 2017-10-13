@@ -53,16 +53,6 @@ func ConfigSpec(c gospec.Context) {
 		c.Expect(err, Equals, "Configure requires a 'process' option, which uniquely identifies this instance")
 	})
 
-	c.Specify("adds ':' to the end of the namespace", func() {
-		config := Configure(map[string]string{
-			"server":    "localhost:6379",
-			"process":   "1",
-			"namespace": "prod",
-		})
-
-		c.Expect(config.Namespace, Equals, "prod:")
-	})
-
 	c.Specify("defaults poll interval to 15 seconds", func() {
 		config := mkConfig(map[string]string{
 			"server":  "localhost:6379",
@@ -80,5 +70,43 @@ func ConfigSpec(c gospec.Context) {
 		})
 
 		c.Expect(config.PollInterval, Equals, 1)
+	})
+
+	c.Specify("NamespacedKey", func() {
+		config := mkDefaultConfig()
+
+		c.Specify("normalises namespace colons", func() {
+			config.SetNamespace("prod")
+			c.Expect(config.NamespacedKey("queue"), Equals, "prod:queue")
+
+			config.SetNamespace("prod:")
+			c.Expect(config.NamespacedKey("queue"), Equals, "prod:queue")
+
+			config.SetNamespace("")
+			c.Expect(config.NamespacedKey("queue"), Equals, "queue")
+		})
+
+		c.Specify("joins multiple elements", func() {
+			config.SetNamespace("prod")
+			c.Expect(config.NamespacedKey("queue", "thing"), Equals, "prod:queue:thing")
+
+			config.SetNamespace("")
+			c.Expect(config.NamespacedKey("queue", "thing"), Equals, "queue:thing")
+		})
+	})
+
+	c.Specify("TrimKeyNamespace", func() {
+		config := mkDefaultConfig()
+
+		c.Specify("normalises namespace colons", func() {
+			config.SetNamespace("prod")
+			c.Expect(config.TrimKeyNamespace("prod:queue"), Equals, "queue")
+
+			config.SetNamespace("prod:")
+			c.Expect(config.TrimKeyNamespace("prod:queue"), Equals, "queue")
+
+			config.SetNamespace("")
+			c.Expect(config.NamespacedKey("prod:queue"), Equals, "prod:queue")
+		})
 	})
 }

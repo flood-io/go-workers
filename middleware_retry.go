@@ -35,7 +35,7 @@ func (r *MiddlewareRetry) Call(queue string, message *Msg, next func() bool) (ac
 
 				_, err := conn.Do(
 					"zadd",
-					r.config.Namespace+RETRY_KEY,
+					r.config.NamespacedKey(RETRY_KEY),
 					nowToSecondsWithNanoPrecision()+waitDuration,
 					message.ToJson(),
 				)

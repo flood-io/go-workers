@@ -14,7 +14,7 @@ func MiddlewareStatsSpec(c gospec.Context) {
 	})
 
 	config := mkDefaultConfig()
-	config.Namespace = "prod:"
+	config.SetNamespace("prod:")
 
 	layout := "2006-01-02"
 	manager := newManager(config, "myqueue", job, 1)

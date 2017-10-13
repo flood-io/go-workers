@@ -18,17 +18,17 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 
 	// List all specs here
-	// r.AddSpec(WorkersSpec)
-	// r.AddSpec(ConfigSpec)
-	// r.AddSpec(MsgSpec)
+	r.AddSpec(WorkersSpec)
+	r.AddSpec(ConfigSpec)
+	r.AddSpec(MsgSpec)
 	r.AddSpec(FetchSpec)
-	// r.AddSpec(WorkerSpec)
-	// r.AddSpec(ManagerSpec)
-	// r.AddSpec(ScheduledSpec)
-	// r.AddSpec(EnqueueSpec)
-	// r.AddSpec(MiddlewareSpec)
-	// r.AddSpec(MiddlewareRetrySpec)
-	// r.AddSpec(MiddlewareStatsSpec)
+	r.AddSpec(WorkerSpec)
+	r.AddSpec(ManagerSpec)
+	r.AddSpec(ScheduledSpec)
+	r.AddSpec(EnqueueSpec)
+	r.AddSpec(MiddlewareSpec)
+	r.AddSpec(MiddlewareRetrySpec)
+	r.AddSpec(MiddlewareStatsSpec)
 
 	// Run GoSpec and report any errors to gotest's `testing.T` instance
 	gospec.MainGoTest(r, t)

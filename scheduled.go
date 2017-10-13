@@ -1,7 +1,6 @@
 package workers
 
 import (
-	"strings"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
@@ -40,7 +39,7 @@ func (s *scheduled) poll() {
 	now := nowToSecondsWithNanoPrecision()
 
 	for _, key := range s.keys {
-		key = s.config.Namespace + key
+		key = s.config.NamespacedKey(key)
 		for {
 			messages, _ := redis.Strings(conn.Do("zrangebyscore", key, "-inf", now, "limit", 0, 1))
 
@@ -52,9 +51,9 @@ func (s *scheduled) poll() {
 
 			if removed, _ := redis.Bool(conn.Do("zrem", key, messages[0])); removed {
 				queue, _ := message.Get("queue").String()
-				queue = strings.TrimPrefix(queue, s.config.Namespace)
+				queue = s.config.TrimKeyNamespace(queue)
 				message.Set("enqueued_at", nowToSecondsWithNanoPrecision())
-				conn.Do("lpush", s.config.Namespace+"queue:"+queue, message.ToJson())
+				conn.Do("lpush", s.config.NamespacedKey("queue", queue), message.ToJson())
 			}
 		}
 	}

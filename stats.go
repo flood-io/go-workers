@@ -51,12 +51,12 @@ func Stats(config *config, w http.ResponseWriter, req *http.Request) {
 	defer conn.Close()
 
 	conn.Send("multi")
-	conn.Send("get", config.Namespace+"stat:processed")
-	conn.Send("get", config.Namespace+"stat:failed")
-	conn.Send("zcard", config.Namespace+RETRY_KEY)
+	conn.Send("get", config.NamespacedKey("stat", "processed"))
+	conn.Send("get", config.NamespacedKey("stat", "failed"))
+	conn.Send("zcard", config.NamespacedKey(RETRY_KEY))
 
 	for key, _ := range enqueued {
-		conn.Send("llen", fmt.Sprintf("%squeue:%s", config.Namespace, key))
+		conn.Send("llen", config.NamespacedKey("queue", key))
 	}
 
 	r, err := conn.Do("exec")
