@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,34 @@ type config struct {
 	Pool               *redis.Pool
 	Fetch              func(queue string) Fetcher
 	GlobalMiddlewares  *Middlewares
+}
+
+func ConfigureFromURLString(urlString string, extraOptions map[string]string) (configObj *config) {
+	url, err := url.Parse(urlString)
+	if err != nil {
+		panic("Unable to parse redis url")
+	}
+
+	if url.Scheme != "redis" {
+		panic("Config url scheme must be 'redis'")
+	}
+
+	query := url.Query()
+
+	options := map[string]string{
+		"server":        url.Host,
+		"database":      url.Path,
+		"process":       query.Get("process"),
+		"pool":          query.Get("pool"),
+		"poll_interval": query.Get("poll_interval"),
+		"namespace":     query.Get("namespace"),
+	}
+
+	for k, v := range extraOptions {
+		options[k] = v
+	}
+
+	return Configure(options)
 }
 
 func Configure(options map[string]string) (configObj *config) {
@@ -87,7 +116,7 @@ func Configure(options map[string]string) (configObj *config) {
 	return
 }
 
-func (c *config) GetNamespace() string {
+func (c *config) Namespace() string {
 	return c.namespace
 }
 
