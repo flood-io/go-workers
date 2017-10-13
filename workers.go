@@ -16,11 +16,29 @@ const (
 
 var Logger WorkersLogger = log.New(os.Stdout, "workers: ", log.Ldate|log.Lmicroseconds)
 
-var managers = make(map[string]*manager)
-var schedule *scheduled
-var control = make(map[string]chan string)
-var access sync.Mutex
-var started bool
+type Workers struct {
+	config      *config
+	managers    map[string]*manager
+	schedule    *scheduled
+	control     map[string]chan string
+	access      sync.Mutex
+	started     bool
+	beforeStart []func()
+	duringDrain []func()
+}
+
+func NewWorkers(config *config) *Workers {
+	return &Workers{
+		config,
+		make(map[string]*manager),
+		nil,
+		make(map[string]chan string),
+		sync.Mutex{},
+		false,
+		nil,
+		nil,
+	}
+}
 
 func newDefaultMiddlewares(config *config) *Middlewares {
 	return NewMiddleware(
@@ -30,66 +48,66 @@ func newDefaultMiddlewares(config *config) *Middlewares {
 	)
 }
 
-func Process(config *config, queue string, job jobFunc, concurrency int, mids ...Action) {
-	access.Lock()
-	defer access.Unlock()
+func (w *Workers) Process(queue string, job jobFunc, concurrency int, mids ...Action) {
+	w.access.Lock()
+	defer w.access.Unlock()
 
-	managers[queue] = newManager(config, queue, job, concurrency, mids...)
+	w.managers[queue] = newManager(w.config, queue, job, concurrency, mids...)
 }
 
-func Run(config *config) {
-	Start(config)
-	go handleSignals()
-	waitForExit()
+func (w *Workers) Run() {
+	w.Start()
+	go w.handleSignals()
+	w.waitForExit()
 }
 
-func ResetManagers() error {
-	access.Lock()
-	defer access.Unlock()
+func (w *Workers) ResetManagers() error {
+	w.access.Lock()
+	defer w.access.Unlock()
 
-	if started {
+	if w.started {
 		return errors.New("Cannot reset worker managers while workers are running")
 	}
 
-	managers = make(map[string]*manager)
+	w.managers = make(map[string]*manager)
 
 	return nil
 }
 
-func Start(config *config) {
-	access.Lock()
-	defer access.Unlock()
+func (w *Workers) Start() {
+	w.access.Lock()
+	defer w.access.Unlock()
 
-	if started {
+	if w.started {
 		return
 	}
 
-	runHooks(beforeStart)
-	startSchedule(config)
-	startManagers()
+	runHooks(w.beforeStart)
+	w.startSchedule()
+	w.startManagers()
 
-	started = true
+	w.started = true
 }
 
-func Quit() {
-	access.Lock()
-	defer access.Unlock()
+func (w *Workers) Quit() {
+	w.access.Lock()
+	defer w.access.Unlock()
 
-	if !started {
+	if !w.started {
 		return
 	}
 
-	quitManagers()
-	quitSchedule()
-	runHooks(duringDrain)
-	waitForExit()
+	w.quitManagers()
+	w.quitSchedule()
+	runHooks(w.duringDrain)
+	w.waitForExit()
 
-	started = false
+	w.started = false
 }
 
-func StatsServer(config *config, port int) {
+func StatsServer(workers *Workers, port int) {
 	statsClosure := func(w http.ResponseWriter, req *http.Request) {
-		Stats(config, w, req)
+		Stats(workers, w, req)
 	}
 	http.HandleFunc("/stats", statsClosure)
 
@@ -100,35 +118,35 @@ func StatsServer(config *config, port int) {
 	}
 }
 
-func startSchedule(config *config) {
-	if schedule == nil {
-		schedule = newScheduled(config, RETRY_KEY, SCHEDULED_JOBS_KEY)
+func (w *Workers) startSchedule() {
+	if w.schedule == nil {
+		w.schedule = newScheduled(w.config, RETRY_KEY, SCHEDULED_JOBS_KEY)
 	}
 
-	schedule.start()
+	w.schedule.start()
 }
 
-func quitSchedule() {
-	if schedule != nil {
-		schedule.quit()
-		schedule = nil
+func (w *Workers) quitSchedule() {
+	if w.schedule != nil {
+		w.schedule.quit()
+		w.schedule = nil
 	}
 }
 
-func startManagers() {
-	for _, manager := range managers {
+func (w *Workers) startManagers() {
+	for _, manager := range w.managers {
 		manager.start()
 	}
 }
 
-func quitManagers() {
-	for _, m := range managers {
+func (w *Workers) quitManagers() {
+	for _, m := range w.managers {
 		go (func(m *manager) { m.quit() })(m)
 	}
 }
 
-func waitForExit() {
-	for _, manager := range managers {
+func (w *Workers) waitForExit() {
+	for _, manager := range w.managers {
 		manager.Wait()
 	}
 }

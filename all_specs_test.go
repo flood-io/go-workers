@@ -51,3 +51,7 @@ func mkDefaultConfig() *config {
 		"namespace": "prod",
 	})
 }
+
+func mkWorkers(config *config) *Workers {
+	return NewWorkers(config)
+}

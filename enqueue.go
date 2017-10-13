@@ -37,19 +37,19 @@ func generateJid() string {
 	return fmt.Sprintf("%x", b)
 }
 
-func Enqueue(config *config, queue, class string, args interface{}) (string, error) {
-	return EnqueueWithOptions(config, queue, class, args, EnqueueOptions{At: nowToSecondsWithNanoPrecision()})
+func (w *Workers) Enqueue(queue, class string, args interface{}) (string, error) {
+	return w.EnqueueWithOptions(queue, class, args, EnqueueOptions{At: nowToSecondsWithNanoPrecision()})
 }
 
-func EnqueueIn(config *config, queue, class string, in float64, args interface{}) (string, error) {
-	return EnqueueWithOptions(config, queue, class, args, EnqueueOptions{At: nowToSecondsWithNanoPrecision() + in})
+func (w *Workers) EnqueueIn(queue, class string, in float64, args interface{}) (string, error) {
+	return w.EnqueueWithOptions(queue, class, args, EnqueueOptions{At: nowToSecondsWithNanoPrecision() + in})
 }
 
-func EnqueueAt(config *config, queue, class string, at time.Time, args interface{}) (string, error) {
-	return EnqueueWithOptions(config, queue, class, args, EnqueueOptions{At: timeToSecondsWithNanoPrecision(at)})
+func (w *Workers) EnqueueAt(queue, class string, at time.Time, args interface{}) (string, error) {
+	return w.EnqueueWithOptions(queue, class, args, EnqueueOptions{At: timeToSecondsWithNanoPrecision(at)})
 }
 
-func EnqueueWithOptions(config *config, queue, class string, args interface{}, opts EnqueueOptions) (string, error) {
+func (w *Workers) EnqueueWithOptions(queue, class string, args interface{}, opts EnqueueOptions) (string, error) {
 	now := nowToSecondsWithNanoPrecision()
 	data := EnqueueData{
 		Queue:          queue,
@@ -66,18 +66,18 @@ func EnqueueWithOptions(config *config, queue, class string, args interface{}, o
 	}
 
 	if now < opts.At {
-		err := enqueueAt(config, data.At, bytes)
+		err := w.enqueueAt(data.At, bytes)
 		return data.Jid, err
 	}
 
-	conn := config.Pool.Get()
+	conn := w.config.Pool.Get()
 	defer conn.Close()
 
-	_, err = conn.Do("sadd", config.NamespacedKey("queues"), queue)
+	_, err = conn.Do("sadd", w.config.NamespacedKey("queues"), queue)
 	if err != nil {
 		return "", err
 	}
-	queue = config.NamespacedKey("queue", queue)
+	queue = w.config.NamespacedKey("queue", queue)
 	_, err = conn.Do("rpush", queue, bytes)
 	if err != nil {
 		return "", err
@@ -86,13 +86,13 @@ func EnqueueWithOptions(config *config, queue, class string, args interface{}, o
 	return data.Jid, nil
 }
 
-func enqueueAt(config *config, at float64, bytes []byte) error {
-	conn := config.Pool.Get()
+func (w *Workers) enqueueAt(at float64, bytes []byte) error {
+	conn := w.config.Pool.Get()
 	defer conn.Close()
 
 	_, err := conn.Do(
 		"zadd",
-		config.NamespacedKey(SCHEDULED_JOBS_KEY), at, bytes,
+		w.config.NamespacedKey(SCHEDULED_JOBS_KEY), at, bytes,
 	)
 	if err != nil {
 		return err

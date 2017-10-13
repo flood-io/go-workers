@@ -1,22 +1,19 @@
 package workers
 
-var beforeStart []func()
-var duringDrain []func()
-
-func BeforeStart(f func()) {
-	access.Lock()
-	defer access.Unlock()
-	beforeStart = append(beforeStart, f)
+func (w *Workers) BeforeStart(f func()) {
+	w.access.Lock()
+	defer w.access.Unlock()
+	w.beforeStart = append(w.beforeStart, f)
 }
 
 // func AfterStart
 // func BeforeQuit
 // func AfterQuit
 
-func DuringDrain(f func()) {
-	access.Lock()
-	defer access.Unlock()
-	duringDrain = append(duringDrain, f)
+func (w *Workers) DuringDrain(f func()) {
+	w.access.Lock()
+	defer w.access.Unlock()
+	w.duringDrain = append(w.duringDrain, f)
 }
 
 func runHooks(hooks []func()) {

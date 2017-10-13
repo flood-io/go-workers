@@ -12,12 +12,13 @@ func EnqueueSpec(c gospec.Context) {
 
 	c.Specify("Enqueue", func() {
 		config := mkDefaultConfig()
+		w := mkWorkers(config)
 
 		conn := config.Pool.Get()
 		defer conn.Close()
 
 		c.Specify("makes the queue available", func() {
-			Enqueue(config, "enqueue1", "Add", []int{1, 2})
+			w.Enqueue("enqueue1", "Add", []int{1, 2})
 
 			found, _ := redis.Bool(conn.Do("sismember", "prod:queues", "enqueue1"))
 			c.Expect(found, IsTrue)
@@ -27,14 +28,14 @@ func EnqueueSpec(c gospec.Context) {
 			nb, _ := redis.Int(conn.Do("llen", "prod:queue:enqueue2"))
 			c.Expect(nb, Equals, 0)
 
-			Enqueue(config, "enqueue2", "Add", []int{1, 2})
+			w.Enqueue("enqueue2", "Add", []int{1, 2})
 
 			nb, _ = redis.Int(conn.Do("llen", "prod:queue:enqueue2"))
 			c.Expect(nb, Equals, 1)
 		})
 
 		c.Specify("saves the arguments", func() {
-			Enqueue(config, "enqueue3", "Compare", []string{"foo", "bar"})
+			w.Enqueue("enqueue3", "Compare", []string{"foo", "bar"})
 
 			bytes, _ := redis.Bytes(conn.Do("lpop", "prod:queue:enqueue3"))
 			var result map[string]interface{}
@@ -48,7 +49,7 @@ func EnqueueSpec(c gospec.Context) {
 		})
 
 		c.Specify("has a jid", func() {
-			Enqueue(config, "enqueue4", "Compare", []string{"foo", "bar"})
+			w.Enqueue("enqueue4", "Compare", []string{"foo", "bar"})
 
 			bytes, _ := redis.Bytes(conn.Do("lpop", "prod:queue:enqueue4"))
 			var result map[string]interface{}
@@ -60,7 +61,7 @@ func EnqueueSpec(c gospec.Context) {
 		})
 
 		c.Specify("has enqueued_at that is close to now", func() {
-			Enqueue(config, "enqueue5", "Compare", []string{"foo", "bar"})
+			w.Enqueue("enqueue5", "Compare", []string{"foo", "bar"})
 
 			bytes, _ := redis.Bytes(conn.Do("lpop", "prod:queue:enqueue5"))
 			var result map[string]interface{}
@@ -73,7 +74,7 @@ func EnqueueSpec(c gospec.Context) {
 		})
 
 		c.Specify("has retry and retry_count when set", func() {
-			EnqueueWithOptions(config, "enqueue6", "Compare", []string{"foo", "bar"}, EnqueueOptions{RetryCount: 13, Retry: true})
+			w.EnqueueWithOptions("enqueue6", "Compare", []string{"foo", "bar"}, EnqueueOptions{RetryCount: 13, Retry: true})
 
 			bytes, _ := redis.Bytes(conn.Do("lpop", "prod:queue:enqueue6"))
 			var result map[string]interface{}
@@ -90,13 +91,14 @@ func EnqueueSpec(c gospec.Context) {
 
 	c.Specify("EnqueueIn", func() {
 		config := mkDefaultConfig()
+		w := mkWorkers(config)
 
-		scheduleQueue := "prod:" + SCHEDULED_JOBS_KEY
-		conn := config.Pool.Get()
+		scheduleQueue := config.NamespacedKey(SCHEDULED_JOBS_KEY)
+		conn := w.config.Pool.Get()
 		defer conn.Close()
 
 		c.Specify("has added a job in the scheduled queue", func() {
-			_, err := EnqueueIn(config, "enqueuein1", "Compare", 10, map[string]interface{}{"foo": "bar"})
+			_, err := w.EnqueueIn("enqueuein1", "Compare", 10, map[string]interface{}{"foo": "bar"})
 			c.Expect(err, Equals, nil)
 
 			scheduledCount, _ := redis.Int(conn.Do("zcard", scheduleQueue))
@@ -106,7 +108,7 @@ func EnqueueSpec(c gospec.Context) {
 		})
 
 		c.Specify("has the correct 'queue'", func() {
-			_, err := EnqueueIn(config, "enqueuein2", "Compare", 10, map[string]interface{}{"foo": "bar"})
+			_, err := w.EnqueueIn("enqueuein2", "Compare", 10, map[string]interface{}{"foo": "bar"})
 			c.Expect(err, Equals, nil)
 
 			var data EnqueueData

@@ -15,14 +15,14 @@ type stats struct {
 	Retries   int64       `json:"retries"`
 }
 
-func Stats(config *config, w http.ResponseWriter, req *http.Request) {
+func Stats(workers *Workers, w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	jobs := make(map[string][]*map[string]interface{})
 	enqueued := make(map[string]string)
 
-	for _, m := range managers {
+	for _, m := range workers.managers {
 		queue := m.queueName()
 		jobs[queue] = make([]*map[string]interface{}, 0)
 		enqueued[queue] = ""
@@ -47,6 +47,7 @@ func Stats(config *config, w http.ResponseWriter, req *http.Request) {
 		0,
 	}
 
+	config := workers.config
 	conn := config.Pool.Get()
 	defer conn.Close()
 
