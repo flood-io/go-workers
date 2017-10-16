@@ -58,7 +58,7 @@ func (w *Workers) Process(queue string, job jobFunc, concurrency int, mids ...Ac
 func (w *Workers) Run() {
 	w.Start()
 	go w.handleSignals()
-	w.waitForExit()
+	w.WaitForExit()
 }
 
 func (w *Workers) ResetManagers() error {
@@ -100,7 +100,7 @@ func (w *Workers) Quit() {
 	w.quitManagers()
 	w.quitSchedule()
 	runHooks(w.duringDrain)
-	w.waitForExit()
+	w.WaitForExit()
 
 	w.started = false
 }
@@ -145,7 +145,7 @@ func (w *Workers) quitManagers() {
 	}
 }
 
-func (w *Workers) waitForExit() {
+func (w *Workers) WaitForExit() {
 	for _, manager := range w.managers {
 		manager.Wait()
 	}
