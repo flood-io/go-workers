@@ -31,9 +31,11 @@ func ConfigureFromURLStringAndOverrides(urlString string, extraOptions map[strin
 
 	query := url.Query()
 
+	database := strings.TrimPrefix(url.Path, "/")
+
 	options := map[string]string{
 		"server":        url.Host,
-		"database":      url.Path,
+		"database":      database,
 		"process":       query.Get("process"),
 		"pool":          query.Get("pool"),
 		"poll_interval": query.Get("poll_interval"),
