@@ -9,7 +9,7 @@ import (
 
 type WorkersConfig struct {
 	RedisURL     string
-	ProcessID    int
+	ProcessID    string
 	PoolSize     int
 	PollInterval int
 	Namespace    string
@@ -44,10 +44,10 @@ func Configure(cfg WorkersConfig) (configObj *config) {
 				return err
 			},
 		},
-		"",
-		"",
 		nil,
 		nil,
+		"",
+		"",
 	}
 
 	configObj.SetNamespace(cfg.Namespace)
