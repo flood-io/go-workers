@@ -1,103 +1,41 @@
 package workers
 
 import (
-	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
 )
 
+type WorkersConfig struct {
+	RedisURL     string
+	ProcessID    int
+	PoolSize     int
+	PollInterval int
+	Namespace    string
+}
+
 type config struct {
 	processId          string
-	namespace          string
-	namespaceWithColon string
 	PollInterval       int
 	Pool               *redis.Pool
 	Fetch              func(queue string) Fetcher
 	GlobalMiddlewares  *Middlewares
+	namespace          string
+	namespaceWithColon string
 }
 
-func ConfigureFromURLStringAndOverrides(urlString string, extraOptions map[string]string) (configObj *config) {
-	url, err := url.Parse(urlString)
-	if err != nil {
-		panic("Unable to parse redis url")
-	}
-
-	if url.Scheme != "redis" {
-		panic("Config url scheme must be 'redis'")
-	}
-
-	query := url.Query()
-
-	database := strings.TrimPrefix(url.Path, "/")
-
-	options := map[string]string{
-		"server":        url.Host,
-		"database":      database,
-		"process":       query.Get("process"),
-		"pool":          query.Get("pool"),
-		"poll_interval": query.Get("poll_interval"),
-		"namespace":     query.Get("namespace"),
-	}
-
-	for k, v := range extraOptions {
-		options[k] = v
-	}
-
-	return Configure(options)
-}
-
-func ConfigureFromURLString(urlString string) (configObj *config) {
-	return ConfigureFromURLStringAndOverrides(urlString, map[string]string{})
-}
-
-func Configure(options map[string]string) (configObj *config) {
-	var poolSize int
-	var pollInterval int
-
-	if options["server"] == "" {
-		panic("Configure requires a 'server' option, which identifies a Redis instance")
-	}
-	if options["process"] == "" {
-		panic("Configure requires a 'process' option, which uniquely identifies this instance")
-	}
-	if options["pool"] == "" {
-		options["pool"] = "1"
-	}
-	if seconds, err := strconv.Atoi(options["poll_interval"]); err == nil {
-		pollInterval = seconds
-	} else {
-		pollInterval = 15
-	}
-
-	poolSize, _ = strconv.Atoi(options["pool"])
-
+func Configure(cfg WorkersConfig) (configObj *config) {
 	configObj = &config{
-		options["process"],
-		"",
-		"",
-		pollInterval,
+		cfg.ProcessID,
+		cfg.PollInterval,
 		&redis.Pool{
-			MaxIdle:     poolSize,
+			MaxIdle:     cfg.PoolSize,
 			IdleTimeout: 240 * time.Second,
 			Dial: func() (redis.Conn, error) {
-				c, err := redis.Dial("tcp", options["server"])
+				c, err := redis.DialURL(cfg.RedisURL)
 				if err != nil {
 					return nil, err
-				}
-				if options["password"] != "" {
-					if _, err := c.Do("AUTH", options["password"]); err != nil {
-						c.Close()
-						return nil, err
-					}
-				}
-				if options["database"] != "" {
-					if _, err := c.Do("SELECT", options["database"]); err != nil {
-						c.Close()
-						return nil, err
-					}
 				}
 				return c, err
 			},
@@ -106,11 +44,13 @@ func Configure(options map[string]string) (configObj *config) {
 				return err
 			},
 		},
+		"",
+		"",
 		nil,
 		nil,
 	}
 
-	configObj.SetNamespace(options["namespace"])
+	configObj.SetNamespace(cfg.Namespace)
 
 	configObj.GlobalMiddlewares = newDefaultMiddlewares(configObj)
 
