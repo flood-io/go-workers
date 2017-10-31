@@ -6,90 +6,60 @@ import (
 )
 
 func ConfigSpec(c gospec.Context) {
-	var recoverOnPanic = func(f func()) (err interface{}) {
-		defer func() {
-			if cause := recover(); cause != nil {
-				err = cause
-			}
-		}()
-
-		f()
-
-		return
-	}
 
 	c.Specify("Configure", func() {
 		c.Specify("sets redis pool size which defaults to 1", func() {
-			config := mkConfig(map[string]string{
-				"server":  "localhost:6379",
-				"process": "1",
-				"pool":    "20",
+			config, err := mkConfig(WorkersConfig{
+				RedisURL:  "localhost:6379",
+				ProcessID: "1",
+				PoolSize:  20,
 			})
 
 			c.Expect(config.Pool.MaxIdle, Equals, 20)
+			c.Expect(err, IsNil)
 		})
 
 		c.Specify("can specify custom process", func() {
-			config := mkConfig(map[string]string{
-				"server":  "localhost:6379",
-				"process": "2",
+			config, err := mkConfig(WorkersConfig{
+				RedisURL:  "redis://localhost:6379",
+				ProcessID: "2",
 			})
 
+			c.Expect(err, IsNil)
 			c.Expect(config.processId, Equals, "2")
 		})
 
 		c.Specify("requires a server parameter", func() {
-			err := recoverOnPanic(func() {
-				mkConfig(map[string]string{"process": "2"})
-			})
+			_, err := mkConfig(WorkersConfig{ProcessID: "2"})
 
-			c.Expect(err, Equals, "Configure requires a 'server' option, which identifies a Redis instance")
+			c.Expect(err.Error(), Equals, "workers.Configure requires RedisURL to connect to redis.")
 		})
 
 		c.Specify("requires a process parameter", func() {
-			err := recoverOnPanic(func() {
-				mkConfig(map[string]string{"server": "localhost:6379"})
-			})
+			_, err := mkConfig(WorkersConfig{RedisURL: "redis://localhost:6379"})
 
-			c.Expect(err, Equals, "Configure requires a 'process' option, which uniquely identifies this instance")
+			c.Expect(err.Error(), Equals, "workers.Configure requires ProcessID to uniquely identify this worker process.")
 		})
 
 		c.Specify("defaults poll interval to 15 seconds", func() {
-			config := mkConfig(map[string]string{
-				"server":  "localhost:6379",
-				"process": "1",
+			config, err := mkConfig(WorkersConfig{
+				RedisURL:  "redis://localhost:6379",
+				ProcessID: "1",
 			})
 
 			c.Expect(config.PollInterval, Equals, 15)
+			c.Expect(err, IsNil)
 		})
 
 		c.Specify("allows customization of poll interval", func() {
-			config := mkConfig(map[string]string{
-				"server":        "localhost:6379",
-				"process":       "1",
-				"poll_interval": "1",
+			config, err := mkConfig(WorkersConfig{
+				RedisURL:     "redis://localhost:6379",
+				ProcessID:    "1",
+				PollInterval: 1,
 			})
 
 			c.Expect(config.PollInterval, Equals, 1)
-		})
-	})
-
-	c.Specify("ConfigureFromURLString", func() {
-		c.Specify("parses url", func() {
-			config := ConfigureFromURLString("redis://localhost:6379/0?pool=24&poll_interval=42&namespace=spacedname&process=2")
-
-			c.Expect(config.PollInterval, Equals, 42)
-			c.Expect(config.Namespace(), Equals, "spacedname")
-			c.Expect(config.processId, Equals, "2")
-		})
-
-		c.Specify("parses url, overriding with extraOptions", func() {
-			extraOptions := map[string]string{"process": "321"}
-			config := ConfigureFromURLStringAndOverrides("redis://localhost:6379/0?pool=24&poll_interval=42&namespace=spacedname&process=123", extraOptions)
-
-			c.Expect(config.PollInterval, Equals, 42)
-			c.Expect(config.Namespace(), Equals, "spacedname")
-			c.Expect(config.processId, Equals, "321")
+			c.Expect(err, IsNil)
 		})
 	})
 

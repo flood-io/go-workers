@@ -34,22 +34,30 @@ func TestAllSpecs(t *testing.T) {
 	gospec.MainGoTest(r, t)
 }
 
-func mkConfig(settings map[string]string) *config {
-	config := Configure(settings)
+func mkConfig(c WorkersConfig) (config *config, err error) {
+	config, err = Configure(c)
+	if err != nil {
+		return
+	}
 
 	conn := config.Pool.Get()
 	conn.Do("flushdb")
 	conn.Close()
 
-	return config
+	return
 }
 
 func mkDefaultConfig() *config {
-	return mkConfig(map[string]string{
-		"server":    "localhost:6379",
-		"process":   "1",
-		"namespace": "prod",
+	config, err := mkConfig(WorkersConfig{
+		RedisURL:  "redis://localhost:6379/0",
+		ProcessID: "1",
+		Namespace: "prod",
 	})
+	if err != nil {
+		panic(err)
+	}
+
+	return config
 }
 
 func mkWorkers(config *config) *Workers {

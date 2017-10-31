@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -25,7 +26,21 @@ type config struct {
 	namespaceWithColon string
 }
 
-func Configure(cfg WorkersConfig) (configObj *config) {
+func Configure(cfg WorkersConfig) (configObj *config, err error) {
+	if cfg.RedisURL == "" {
+		err = errors.New("workers.Configure requires RedisURL to connect to redis.")
+		return
+	}
+
+	if cfg.ProcessID == "" {
+		err = errors.New("workers.Configure requires ProcessID to uniquely identify this worker process.")
+		return
+	}
+
+	if cfg.PollInterval == 0 {
+		cfg.PollInterval = 15
+	}
+
 	configObj = &config{
 		cfg.ProcessID,
 		cfg.PollInterval,
