@@ -21,10 +21,10 @@ func (r *MiddlewareRetry) Call(queue string, message *Msg, next func() error) (e
 	err = next()
 
 	if err != nil {
-		conn := r.config.Pool.Get()
-		defer conn.Close()
-
 		if retry(message) {
+			conn := r.config.Pool.Get()
+			defer conn.Close()
+
 			message.Set("queue", queue)
 			message.Set("error_message", fmt.Sprintf("%v", err))
 			retryCount := incrementRetry(message)
