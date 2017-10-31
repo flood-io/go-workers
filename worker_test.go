@@ -1,6 +1,8 @@
 package workers
 
 import (
+	"errors"
+
 	"github.com/customerio/gospec"
 	. "github.com/customerio/gospec"
 
@@ -12,17 +14,17 @@ var failMiddlewareCalled bool
 
 type testMiddleware struct{}
 
-func (l *testMiddleware) Call(queue string, message *Msg, next func() bool) (result bool) {
+func (l *testMiddleware) Call(queue string, message *Msg, next func() error) (result error) {
 	testMiddlewareCalled = true
 	return next()
 }
 
 type failMiddleware struct{}
 
-func (l *failMiddleware) Call(queue string, message *Msg, next func() bool) (result bool) {
+func (l *failMiddleware) Call(queue string, message *Msg, next func() error) (result error) {
 	failMiddlewareCalled = true
 	next()
-	return false
+	return errors.New("failed")
 }
 
 func confirm(manager *manager) (msg *Msg) {
@@ -39,8 +41,9 @@ func confirm(manager *manager) (msg *Msg) {
 func WorkerSpec(c gospec.Context) {
 	var processed = make(chan *Args)
 
-	var testJob = (func(message *Msg) {
+	var testJob = (func(message *Msg) error {
 		processed <- message.Args()
+		return nil
 	})
 
 	config := mkDefaultConfig()
@@ -115,9 +118,10 @@ func WorkerSpec(c gospec.Context) {
 			worker.manager.mids = defaultMiddlewares
 		})
 
-		c.Specify("recovers and confirms if job panics", func() {
-			var panicJob = (func(message *Msg) {
-				panic("AHHHHHHHHH")
+		c.Specify("recovers and cancels if job panics", func() {
+			var panicJob = (func(message *Msg) error {
+				panic("AHHHH")
+				return nil
 			})
 
 			manager := newManager(config, "myqueue", panicJob, 1)
@@ -126,7 +130,7 @@ func WorkerSpec(c gospec.Context) {
 			go worker.work(messages)
 			messages <- message
 
-			c.Expect(confirm(manager), Equals, message)
+			c.Expect(confirm(manager), IsNil)
 
 			worker.quit()
 		})

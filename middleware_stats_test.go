@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"errors"
 	"time"
 
 	"github.com/customerio/gospec"
@@ -9,8 +10,9 @@ import (
 )
 
 func MiddlewareStatsSpec(c gospec.Context) {
-	var job = (func(message *Msg) {
+	var job = (func(message *Msg) error {
 		// noop
+		return nil
 	})
 
 	config := mkDefaultConfig()
@@ -41,8 +43,8 @@ func MiddlewareStatsSpec(c gospec.Context) {
 	})
 
 	c.Specify("failed job", func() {
-		var job = (func(message *Msg) {
-			panic("AHHHH")
+		var job = (func(message *Msg) error {
+			return errors.New("AHHHH")
 		})
 
 		manager := newManager(config, "myqueue", job, 1)

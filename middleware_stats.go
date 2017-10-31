@@ -8,15 +8,11 @@ type MiddlewareStats struct {
 	config *config
 }
 
-func (l *MiddlewareStats) Call(queue string, message *Msg, next func() bool) (acknowledge bool) {
-	defer func() {
-		if e := recover(); e != nil {
-			incrementStats(l.config, "failed")
-			panic(e)
-		}
-	}()
-
-	acknowledge = next()
+func (l *MiddlewareStats) Call(queue string, message *Msg, next func() error) (err error) {
+	err = next()
+	if err != nil {
+		incrementStats(l.config, "failed")
+	}
 
 	incrementStats(l.config, "processed")
 

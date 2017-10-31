@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"errors"
 	"time"
 
 	"github.com/customerio/gospec"
@@ -9,8 +10,8 @@ import (
 )
 
 func MiddlewareRetrySpec(c gospec.Context) {
-	var panicingJob = (func(message *Msg) {
-		panic("AHHHH")
+	var erroringJob = (func(message *Msg) error {
+		return errors.New("AHHHH")
 	})
 
 	config := mkDefaultConfig()
@@ -21,14 +22,14 @@ func MiddlewareRetrySpec(c gospec.Context) {
 	)
 
 	layout := "2006-01-02 15:04:05 MST"
-	manager := newManager(config, "myqueue", panicingJob, 1)
+	manager := newManager(config, "myqueue", erroringJob, 1)
 	worker := newWorker(manager)
 
 	c.Specify("puts messages in retry queue when they fail", func() {
 		message, _ := NewMsg("{\"jid\":\"2\",\"retry\":true}")
 
-		wares.call("myqueue", message, func() {
-			worker.process(message)
+		wares.call("myqueue", message, func() error {
+			return worker.process(message)
 		})
 
 		conn := config.Pool.Get()
@@ -41,8 +42,8 @@ func MiddlewareRetrySpec(c gospec.Context) {
 	c.Specify("allows disabling retries", func() {
 		message, _ := NewMsg("{\"jid\":\"2\",\"retry\":false}")
 
-		wares.call("myqueue", message, func() {
-			worker.process(message)
+		wares.call("myqueue", message, func() error {
+			return worker.process(message)
 		})
 
 		conn := config.Pool.Get()
@@ -55,8 +56,8 @@ func MiddlewareRetrySpec(c gospec.Context) {
 	c.Specify("doesn't retry by default", func() {
 		message, _ := NewMsg("{\"jid\":\"2\"}")
 
-		wares.call("myqueue", message, func() {
-			worker.process(message)
+		wares.call("myqueue", message, func() error {
+			return worker.process(message)
 		})
 
 		conn := config.Pool.Get()
@@ -69,8 +70,8 @@ func MiddlewareRetrySpec(c gospec.Context) {
 	c.Specify("allows numeric retries", func() {
 		message, _ := NewMsg("{\"jid\":\"2\",\"retry\":5}")
 
-		wares.call("myqueue", message, func() {
-			worker.process(message)
+		wares.call("myqueue", message, func() error {
+			return worker.process(message)
 		})
 
 		conn := config.Pool.Get()
@@ -83,8 +84,8 @@ func MiddlewareRetrySpec(c gospec.Context) {
 	c.Specify("handles new failed message", func() {
 		message, _ := NewMsg("{\"jid\":\"2\",\"retry\":true}")
 
-		wares.call("myqueue", message, func() {
-			worker.process(message)
+		wares.call("myqueue", message, func() error {
+			return worker.process(message)
 		})
 
 		conn := config.Pool.Get()
@@ -111,8 +112,8 @@ func MiddlewareRetrySpec(c gospec.Context) {
 	c.Specify("handles recurring failed message", func() {
 		message, _ := NewMsg("{\"jid\":\"2\",\"retry\":true,\"queue\":\"default\",\"error_message\":\"bam\",\"failed_at\":\"2013-07-20 14:03:42 UTC\",\"retry_count\":10}")
 
-		wares.call("myqueue", message, func() {
-			worker.process(message)
+		wares.call("myqueue", message, func() error {
+			return worker.process(message)
 		})
 
 		conn := config.Pool.Get()
@@ -137,8 +138,8 @@ func MiddlewareRetrySpec(c gospec.Context) {
 	c.Specify("handles recurring failed message with customized max", func() {
 		message, _ := NewMsg("{\"jid\":\"2\",\"retry\":10,\"queue\":\"default\",\"error_message\":\"bam\",\"failed_at\":\"2013-07-20 14:03:42 UTC\",\"retry_count\":8}")
 
-		wares.call("myqueue", message, func() {
-			worker.process(message)
+		wares.call("myqueue", message, func() error {
+			return worker.process(message)
 		})
 
 		conn := config.Pool.Get()
@@ -163,8 +164,8 @@ func MiddlewareRetrySpec(c gospec.Context) {
 	c.Specify("doesn't retry after default number of retries", func() {
 		message, _ := NewMsg("{\"jid\":\"2\",\"retry\":true,\"retry_count\":25}")
 
-		wares.call("myqueue", message, func() {
-			worker.process(message)
+		wares.call("myqueue", message, func() error {
+			return worker.process(message)
 		})
 
 		conn := config.Pool.Get()
@@ -177,8 +178,8 @@ func MiddlewareRetrySpec(c gospec.Context) {
 	c.Specify("doesn't retry after customized number of retries", func() {
 		message, _ := NewMsg("{\"jid\":\"2\",\"retry\":3,\"retry_count\":3}")
 
-		wares.call("myqueue", message, func() {
-			worker.process(message)
+		wares.call("myqueue", message, func() error {
+			return worker.process(message)
 		})
 
 		conn := config.Pool.Get()

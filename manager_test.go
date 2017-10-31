@@ -15,12 +15,12 @@ type customMid struct {
 	mutex sync.Mutex
 }
 
-func (m *customMid) Call(queue string, message *Msg, next func() bool) (result bool) {
+func (m *customMid) Call(queue string, message *Msg, next func() error) (err error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	m.trace = append(m.trace, m.Base+"1")
-	result = next()
+	err = next()
 	m.trace = append(m.trace, m.Base+"2")
 	return
 }
@@ -38,8 +38,9 @@ func (m *customMid) Trace() []string {
 func ManagerSpec(c gospec.Context) {
 	processed := make(chan *Args)
 
-	testJob := (func(message *Msg) {
+	testJob := (func(message *Msg) error {
 		processed <- message.Args()
+		return nil
 	})
 
 	config := mkDefaultConfig()
