@@ -54,8 +54,6 @@ func continuation(actions []Action, queue string, message *Msg, final func() err
 		} else {
 			return final()
 		}
-
-		return
 	}
 }
 

@@ -28,6 +28,7 @@ func (r *MiddlewareRetry) Call(queue string, message *Msg, next func() error) (e
 			message.Set("queue", queue)
 			message.Set("error_message", fmt.Sprintf("%v", err))
 			retryCount := incrementRetry(message)
+			err = nil
 
 			waitDuration := durationToSecondsWithNanoPrecision(
 				time.Duration(

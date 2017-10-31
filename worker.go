@@ -64,7 +64,7 @@ func (w *worker) process(message *Msg) (err error) {
 			case error:
 				err = t
 			default:
-				err = fmt.Errorf("error was %v", t)
+				err = fmt.Errorf("recovered error was %v", t)
 			}
 		}
 	}()
