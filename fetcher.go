@@ -16,17 +16,19 @@ type Fetcher interface {
 	Messages() chan *Msg
 	Close()
 	Closed() bool
+	InprogressQueue() string
 }
 
 type fetch struct {
-	config       *config
-	queue        string
-	ready        chan bool
-	finishedwork chan bool
-	messages     chan *Msg
-	stop         chan bool
-	exit         chan bool
-	closed       chan bool
+	config          *config
+	queue           string
+	ready           chan bool
+	finishedwork    chan bool
+	messages        chan *Msg
+	stop            chan bool
+	exit            chan bool
+	closed          chan bool
+	inprogressQueue string
 }
 
 func NewFetch(config *config, queue string, messages chan *Msg, ready chan bool) Fetcher {
@@ -39,6 +41,7 @@ func NewFetch(config *config, queue string, messages chan *Msg, ready chan bool)
 		make(chan bool),
 		make(chan bool),
 		make(chan bool),
+		fmt.Sprint(queue, ":", config.processId, ":inprogress"),
 	}
 }
 
@@ -93,7 +96,7 @@ func (f *fetch) tryFetchMessage(messages chan string) {
 	conn := f.config.Pool.Get()
 	defer conn.Close()
 
-	message, err := redis.String(conn.Do("brpoplpush", f.queue, f.inprogressQueue(), 1))
+	message, err := redis.String(conn.Do("brpoplpush", f.queue, f.inprogressQueue, 1))
 
 	if err != nil {
 		// If redis returns null, the queue is empty. Just ignore the error.
@@ -120,7 +123,7 @@ func (f *fetch) sendMessage(message string) {
 func (f *fetch) Acknowledge(message *Msg) {
 	conn := f.config.Pool.Get()
 	defer conn.Close()
-	conn.Do("lrem", f.inprogressQueue(), -1, message.OriginalJson())
+	conn.Do("lrem", f.inprogressQueue, -1, message.OriginalJson())
 }
 
 func (f *fetch) Messages() chan *Msg {
@@ -153,7 +156,7 @@ func (f *fetch) inprogressMessages() []string {
 	conn := f.config.Pool.Get()
 	defer conn.Close()
 
-	messages, err := redis.Strings(conn.Do("lrange", f.inprogressQueue(), 0, -1))
+	messages, err := redis.Strings(conn.Do("lrange", f.inprogressQueue, 0, -1))
 	if err != nil {
 		Logger.Println("ERR: ", err)
 	}
@@ -161,6 +164,6 @@ func (f *fetch) inprogressMessages() []string {
 	return messages
 }
 
-func (f *fetch) inprogressQueue() string {
-	return fmt.Sprint(f.queue, ":", f.config.processId, ":inprogress")
+func (f *fetch) InprogressQueue() string {
+	return f.inprogressQueue
 }
