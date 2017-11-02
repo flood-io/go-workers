@@ -2,7 +2,6 @@ package workers
 
 import (
 	"fmt"
-	"log"
 	"sync/atomic"
 	"time"
 )
@@ -62,7 +61,7 @@ func (w *worker) process(message *Msg) (err error) {
 		recoveredErr := recover()
 
 		if recoveredErr != nil {
-			log.Printf("recovered panic with error '%s' but discarding", recoveredErr)
+			Logger.Printf("recovered panic with error '%s' but discarding", recoveredErr)
 		}
 	}()
 

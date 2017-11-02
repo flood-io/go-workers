@@ -2,7 +2,6 @@ package workers
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -47,7 +46,7 @@ func (r *MiddlewareRetry) Call(queue string, message *Msg, next func() error) (e
 			// then we shouldn't return the error, otherwise
 			// it'll disappear into the void.
 			if err != nil {
-				log.Printf("failed to add job to retry %v", err)
+				Logger.Printf("failed to add job to retry %v", err)
 				err = nil
 			}
 		}
