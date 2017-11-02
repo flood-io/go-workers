@@ -1,7 +1,6 @@
 package workers
 
 import (
-	"fmt"
 	"sync/atomic"
 	"time"
 )
@@ -56,7 +55,6 @@ func (w *worker) work(messages chan *Msg) {
 }
 
 func (w *worker) process(message *Msg) (err error) {
-	fmt.Println("GOWO process", message)
 	defer func() {
 		recoveredErr := recover()
 
