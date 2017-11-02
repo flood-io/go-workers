@@ -2,6 +2,7 @@ package workers
 
 import (
 	"fmt"
+	"log"
 	"sync/atomic"
 	"time"
 )
@@ -56,16 +57,12 @@ func (w *worker) work(messages chan *Msg) {
 }
 
 func (w *worker) process(message *Msg) (err error) {
+	fmt.Println("GOWO process", message)
 	defer func() {
 		recoveredErr := recover()
 
 		if recoveredErr != nil {
-			switch t := recoveredErr.(type) {
-			case error:
-				err = t
-			default:
-				err = fmt.Errorf("recovered error was %v", t)
-			}
+			log.Printf("recovered panic with error '%s' but discarding", recoveredErr)
 		}
 	}()
 
