@@ -130,7 +130,7 @@ func WorkerSpec(c gospec.Context) {
 			go worker.work(messages)
 			messages <- message
 
-			c.Expect(confirm(manager), IsNil)
+			c.Expect(confirm(manager), Equals, message)
 
 			worker.quit()
 		})
