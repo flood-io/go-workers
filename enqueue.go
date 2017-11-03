@@ -92,7 +92,7 @@ func (w *Workers) enqueueAt(at float64, bytes []byte) error {
 
 	_, err := conn.Do(
 		"zadd",
-		w.config.NamespacedKey(SCHEDULED_JOBS_KEY), at, bytes,
+		w.config.NamespacedKey(w.config.scheduledJobsQueue), at, bytes,
 	)
 	if err != nil {
 		return err

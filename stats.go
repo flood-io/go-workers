@@ -54,7 +54,7 @@ func Stats(workers *Workers, w http.ResponseWriter, req *http.Request) {
 	conn.Send("multi")
 	conn.Send("get", config.NamespacedKey("stat", "processed"))
 	conn.Send("get", config.NamespacedKey("stat", "failed"))
-	conn.Send("zcard", config.NamespacedKey(RETRY_KEY))
+	conn.Send("zcard", config.NamespacedKey(config.retryQueue))
 
 	for key, _ := range enqueued {
 		conn.Send("llen", config.NamespacedKey("queue", key))

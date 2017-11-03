@@ -93,7 +93,7 @@ func EnqueueSpec(c gospec.Context) {
 		config := mkDefaultConfig()
 		w := mkWorkers(config)
 
-		scheduleQueue := config.NamespacedKey(SCHEDULED_JOBS_KEY)
+		scheduleQueue := config.NamespacedKey(config.scheduledJobsQueue)
 		conn := w.config.Pool.Get()
 		defer conn.Close()
 

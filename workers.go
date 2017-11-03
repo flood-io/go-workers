@@ -9,11 +9,6 @@ import (
 	"sync"
 )
 
-const (
-	RETRY_KEY          = "goretry"
-	SCHEDULED_JOBS_KEY = "schedule"
-)
-
 var Logger WorkersLogger = log.New(os.Stdout, "workers: ", log.Ldate|log.Lmicroseconds)
 
 type Workers struct {
@@ -120,7 +115,7 @@ func StatsServer(workers *Workers, port int) {
 
 func (w *Workers) startSchedule() {
 	if w.schedule == nil {
-		w.schedule = newScheduled(w.config, RETRY_KEY, SCHEDULED_JOBS_KEY)
+		w.schedule = newScheduled(w.config, w.config.retryQueue, w.config.scheduledJobsQueue)
 	}
 
 	w.schedule.start()

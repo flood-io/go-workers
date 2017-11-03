@@ -24,7 +24,7 @@ func (w *Workers) QueueStats() (queueStats *QueueStats, err error) {
 	conn := config.Pool.Get()
 	defer conn.Close()
 
-	conn.Send("zcard", config.NamespacedKey(RETRY_KEY))
+	conn.Send("zcard", config.NamespacedKey(w.config.retryQueue))
 	i := 0
 	for queue, manager := range w.managers {
 		conn.Send("llen", config.NamespacedKey("queue", queue))

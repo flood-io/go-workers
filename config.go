@@ -8,6 +8,11 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
+const (
+	defaultRetryQueue         = "goretry"
+	defaultScheduledJobsQueue = "schedule"
+)
+
 type WorkersConfig struct {
 	RedisURL     string
 	ProcessID    string
@@ -24,6 +29,9 @@ type config struct {
 	GlobalMiddlewares  *Middlewares
 	namespace          string
 	namespaceWithColon string
+
+	retryQueue         string
+	scheduledJobsQueue string
 }
 
 func Configure(cfg WorkersConfig) (configObj *config, err error) {
@@ -42,9 +50,9 @@ func Configure(cfg WorkersConfig) (configObj *config, err error) {
 	}
 
 	configObj = &config{
-		cfg.ProcessID,
-		cfg.PollInterval,
-		&redis.Pool{
+		processId:    cfg.ProcessID,
+		PollInterval: cfg.PollInterval,
+		Pool: &redis.Pool{
 			MaxIdle:     cfg.PoolSize,
 			IdleTimeout: 240 * time.Second,
 			Dial: func() (redis.Conn, error) {
@@ -59,10 +67,8 @@ func Configure(cfg WorkersConfig) (configObj *config, err error) {
 				return err
 			},
 		},
-		nil,
-		nil,
-		"",
-		"",
+		retryQueue:         defaultRetryQueue,
+		scheduledJobsQueue: defaultScheduledJobsQueue,
 	}
 
 	configObj.SetNamespace(cfg.Namespace)
