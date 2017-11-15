@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/garyburd/redigo/redis"
 )
 
 var Logger WorkersLogger = log.New(os.Stdout, "workers: ", log.Ldate|log.Lmicroseconds)
@@ -41,6 +43,10 @@ func newDefaultMiddlewares(config *config) *Middlewares {
 		&MiddlewareRetry{config},
 		&MiddlewareStats{config},
 	)
+}
+
+func (w *Workers) RedisPool() *redis.Pool {
+	return w.config.Pool
 }
 
 func (w *Workers) Process(queue string, job jobFunc, concurrency int, mids ...Action) {
