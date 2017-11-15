@@ -9,7 +9,7 @@ func ConfigSpec(c gospec.Context) {
 
 	c.Specify("Configure", func() {
 		c.Specify("sets redis pool size which defaults to 1", func() {
-			config, err := mkConfig(WorkersConfig{
+			config, err := mkConfig(ConfigureOpts{
 				RedisURL:  "localhost:6379",
 				ProcessID: "1",
 				PoolSize:  20,
@@ -20,7 +20,7 @@ func ConfigSpec(c gospec.Context) {
 		})
 
 		c.Specify("can specify custom process", func() {
-			config, err := mkConfig(WorkersConfig{
+			config, err := mkConfig(ConfigureOpts{
 				RedisURL:  "redis://localhost:6379",
 				ProcessID: "2",
 			})
@@ -30,19 +30,19 @@ func ConfigSpec(c gospec.Context) {
 		})
 
 		c.Specify("requires a server parameter", func() {
-			_, err := mkConfig(WorkersConfig{ProcessID: "2"})
+			_, err := mkConfig(ConfigureOpts{ProcessID: "2"})
 
 			c.Expect(err.Error(), Equals, "workers.Configure requires RedisURL to connect to redis.")
 		})
 
 		c.Specify("requires a process parameter", func() {
-			_, err := mkConfig(WorkersConfig{RedisURL: "redis://localhost:6379"})
+			_, err := mkConfig(ConfigureOpts{RedisURL: "redis://localhost:6379"})
 
 			c.Expect(err.Error(), Equals, "workers.Configure requires ProcessID to uniquely identify this worker process.")
 		})
 
 		c.Specify("defaults poll interval to 15 seconds", func() {
-			config, err := mkConfig(WorkersConfig{
+			config, err := mkConfig(ConfigureOpts{
 				RedisURL:  "redis://localhost:6379",
 				ProcessID: "1",
 			})
@@ -52,7 +52,7 @@ func ConfigSpec(c gospec.Context) {
 		})
 
 		c.Specify("allows customization of poll interval", func() {
-			config, err := mkConfig(WorkersConfig{
+			config, err := mkConfig(ConfigureOpts{
 				RedisURL:     "redis://localhost:6379",
 				ProcessID:    "1",
 				PollInterval: 1,

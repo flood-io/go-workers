@@ -35,7 +35,6 @@ func TestAllSpecs(t *testing.T) {
 	gospec.MainGoTest(r, t)
 }
 
-func mkConfig(c WorkersConfig) (config *config, err error) {
 const defaultRedisURL = "redis://localhost:6379/0"
 
 func redisURL() string {
@@ -47,6 +46,8 @@ func redisURL() string {
 
 	return url
 }
+
+func mkConfig(c ConfigureOpts) (config *config, err error) {
 	config, err = Configure(c)
 	if err != nil {
 		return

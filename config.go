@@ -13,7 +13,7 @@ const (
 	defaultScheduledJobsQueue = "schedule"
 )
 
-type WorkersConfig struct {
+type ConfigureOpts struct {
 	RedisURL     string
 	ProcessID    string
 	PoolSize     int
@@ -34,7 +34,7 @@ type config struct {
 	scheduledJobsQueue string
 }
 
-func Configure(cfg WorkersConfig) (configObj *config, err error) {
+func Configure(cfg ConfigureOpts) (configObj *config, err error) {
 	if cfg.RedisURL == "" {
 		err = errors.New("workers.Configure requires RedisURL to connect to redis.")
 		return
