@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"os"
 	"testing"
 
 	"github.com/customerio/gospec"
@@ -35,6 +36,17 @@ func TestAllSpecs(t *testing.T) {
 }
 
 func mkConfig(c WorkersConfig) (config *config, err error) {
+const defaultRedisURL = "redis://localhost:6379/0"
+
+func redisURL() string {
+	url := os.Getenv("REDIS_URL")
+
+	if url == "" {
+		return defaultRedisURL
+	}
+
+	return url
+}
 	config, err = Configure(c)
 	if err != nil {
 		return
@@ -48,8 +60,8 @@ func mkConfig(c WorkersConfig) (config *config, err error) {
 }
 
 func mkDefaultConfig() *config {
-	config, err := mkConfig(WorkersConfig{
-		RedisURL:  "redis://localhost:6379/0",
+	config, err := mkConfig(ConfigureOpts{
+		RedisURL:  redisURL(),
 		ProcessID: "1",
 		Namespace: "prod",
 	})
