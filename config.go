@@ -14,11 +14,24 @@ const (
 )
 
 type ConfigureOpts struct {
-	RedisURL     string
-	ProcessID    string
-	PoolSize     int
+	// RedisURL is a redis schemed URL as understood by redigo:
+	// https://godoc.org/github.com/garyburd/redigo/redis#DialURL
+	RedisURL string
+
+	// ProcessID uniquely identifies this process. Used for uncoordinated reliable processing of messages.
+	ProcessID string
+
+	// MaxIdle is the maximum number of idle connections to keep in the redis connection pool.
+	MaxIdle int
+
+	// PoolSize is the maximum number of connections allowed by the redis conneciton pool.
+	PoolSize int
+
+	// PollInterval is how often we should poll for scheduled jobs.
 	PollInterval int
-	Namespace    string
+
+	// Namespace is the namespace to use for redis keys.
+	Namespace string
 }
 
 type config struct {
@@ -49,11 +62,16 @@ func Configure(cfg ConfigureOpts) (configObj *config, err error) {
 		cfg.PollInterval = 15
 	}
 
+	if cfg.MaxIdle == 0 {
+		cfg.MaxIdle = cfg.PoolSize
+	}
+
 	configObj = &config{
 		processId:    cfg.ProcessID,
 		PollInterval: cfg.PollInterval,
 		Pool: &redis.Pool{
-			MaxIdle:     cfg.PoolSize,
+			MaxIdle:     cfg.MaxIdle,
+			MaxActive:   cfg.PoolSize,
 			IdleTimeout: 240 * time.Second,
 			Dial: func() (redis.Conn, error) {
 				c, err := redis.DialURL(cfg.RedisURL)
