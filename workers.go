@@ -24,16 +24,16 @@ type Workers struct {
 	duringDrain []func()
 }
 
+// ensure that Workers struct fulfils GoWorkers interface
+var _ GoWorkers = (*Workers)(nil)
+
 func NewWorkers(config *config) *Workers {
 	return &Workers{
-		config,
-		make(map[string]*manager),
-		nil,
-		make(map[string]chan string),
-		sync.Mutex{},
-		false,
-		nil,
-		nil,
+		config:   config,
+		managers: make(map[string]*manager),
+		control:  make(map[string]chan string),
+		access:   sync.Mutex{},
+		started:  false,
 	}
 }
 
