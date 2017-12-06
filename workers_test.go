@@ -9,23 +9,27 @@ import (
 
 var called chan bool
 
-func myJob(message *Msg) {
+func myJob(message *Msg) error {
 	called <- true
+	return nil
 }
 
 func WorkersSpec(c gospec.Context) {
 	c.Specify("Workers", func() {
+		config := mkDefaultConfig()
+		w := mkWorkers(config)
+
 		c.Specify("allows running in tests", func() {
 			called = make(chan bool)
 
-			Process("myqueue", myJob, 10)
+			w.Process("myqueue", myJob, 10)
 
-			Start()
+			w.Start()
 
-			Enqueue("myqueue", "Add", []int{1, 2})
+			w.Enqueue("myqueue", "Add", []int{1, 2})
 			<-called
 
-			Quit()
+			w.Quit()
 		})
 
 		// TODO make this test more deterministic, randomly locks up in travis.
@@ -48,49 +52,43 @@ func WorkersSpec(c gospec.Context) {
 		c.Specify("runs beforeStart hooks", func() {
 			hooks := []string{}
 
-			BeforeStart(func() {
+			w.BeforeStart(func() {
 				hooks = append(hooks, "1")
 			})
-			BeforeStart(func() {
+			w.BeforeStart(func() {
 				hooks = append(hooks, "2")
 			})
-			BeforeStart(func() {
+			w.BeforeStart(func() {
 				hooks = append(hooks, "3")
 			})
 
-			Start()
+			w.Start()
 
 			c.Expect(reflect.DeepEqual(hooks, []string{"1", "2", "3"}), IsTrue)
 
-			Quit()
-
-			// Clear out global hooks variable
-			beforeStart = nil
+			w.Quit()
 		})
 
 		c.Specify("runs beforeStart hooks", func() {
 			hooks := []string{}
 
-			DuringDrain(func() {
+			w.DuringDrain(func() {
 				hooks = append(hooks, "1")
 			})
-			DuringDrain(func() {
+			w.DuringDrain(func() {
 				hooks = append(hooks, "2")
 			})
-			DuringDrain(func() {
+			w.DuringDrain(func() {
 				hooks = append(hooks, "3")
 			})
 
-			Start()
+			w.Start()
 
 			c.Expect(reflect.DeepEqual(hooks, []string{}), IsTrue)
 
-			Quit()
+			w.Quit()
 
 			c.Expect(reflect.DeepEqual(hooks, []string{"1", "2", "3"}), IsTrue)
-
-			// Clear out global hooks variable
-			duringDrain = nil
 		})
 	})
 }

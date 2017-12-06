@@ -15,14 +15,14 @@ type stats struct {
 	Retries   int64       `json:"retries"`
 }
 
-func Stats(w http.ResponseWriter, req *http.Request) {
+func Stats(workers *Workers, w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	jobs := make(map[string][]*map[string]interface{})
 	enqueued := make(map[string]string)
 
-	for _, m := range managers {
+	for _, m := range workers.managers {
 		queue := m.queueName()
 		jobs[queue] = make([]*map[string]interface{}, 0)
 		enqueued[queue] = ""
@@ -47,16 +47,17 @@ func Stats(w http.ResponseWriter, req *http.Request) {
 		0,
 	}
 
-	conn := Config.Pool.Get()
+	config := workers.config
+	conn := config.Pool.Get()
 	defer conn.Close()
 
 	conn.Send("multi")
-	conn.Send("get", Config.Namespace+"stat:processed")
-	conn.Send("get", Config.Namespace+"stat:failed")
-	conn.Send("zcard", Config.Namespace+RETRY_KEY)
+	conn.Send("get", config.NamespacedKey("stat", "processed"))
+	conn.Send("get", config.NamespacedKey("stat", "failed"))
+	conn.Send("zcard", config.NamespacedKey(config.retryQueue))
 
 	for key, _ := range enqueued {
-		conn.Send("llen", fmt.Sprintf("%squeue:%s", Config.Namespace, key))
+		conn.Send("llen", config.NamespacedKey("queue", key))
 	}
 
 	r, err := conn.Do("exec")

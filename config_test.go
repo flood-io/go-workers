@@ -6,85 +6,98 @@ import (
 )
 
 func ConfigSpec(c gospec.Context) {
-	var recoverOnPanic = func(f func()) (err interface{}) {
-		defer func() {
-			if cause := recover(); cause != nil {
-				err = cause
-			}
-		}()
 
-		f()
+	c.Specify("Configure", func() {
+		c.Specify("sets redis pool size which defaults to 1", func() {
+			config, err := mkConfig(ConfigureOpts{
+				RedisURL:  "localhost:6379",
+				ProcessID: "1",
+				PoolSize:  20,
+			})
 
-		return
-	}
-
-	c.Specify("sets redis pool size which defaults to 1", func() {
-		c.Expect(Config.Pool.MaxIdle, Equals, 1)
-
-		Configure(map[string]string{
-			"server":  "localhost:6379",
-			"process": "1",
-			"pool":    "20",
+			c.Expect(config.Pool.MaxIdle, Equals, 20)
+			c.Expect(err, IsNil)
 		})
 
-		c.Expect(Config.Pool.MaxIdle, Equals, 20)
+		c.Specify("can specify custom process", func() {
+			config, err := mkConfig(ConfigureOpts{
+				RedisURL:  "redis://localhost:6379",
+				ProcessID: "2",
+			})
+
+			c.Expect(err, IsNil)
+			c.Expect(config.processId, Equals, "2")
+		})
+
+		c.Specify("requires a server parameter", func() {
+			_, err := mkConfig(ConfigureOpts{ProcessID: "2"})
+
+			c.Expect(err.Error(), Equals, "workers.Configure requires RedisURL to connect to redis.")
+		})
+
+		c.Specify("requires a process parameter", func() {
+			_, err := mkConfig(ConfigureOpts{RedisURL: "redis://localhost:6379"})
+
+			c.Expect(err.Error(), Equals, "workers.Configure requires ProcessID to uniquely identify this worker process.")
+		})
+
+		c.Specify("defaults poll interval to 15 seconds", func() {
+			config, err := mkConfig(ConfigureOpts{
+				RedisURL:  "redis://localhost:6379",
+				ProcessID: "1",
+			})
+
+			c.Expect(config.PollInterval, Equals, 15)
+			c.Expect(err, IsNil)
+		})
+
+		c.Specify("allows customization of poll interval", func() {
+			config, err := mkConfig(ConfigureOpts{
+				RedisURL:     "redis://localhost:6379",
+				ProcessID:    "1",
+				PollInterval: 1,
+			})
+
+			c.Expect(config.PollInterval, Equals, 1)
+			c.Expect(err, IsNil)
+		})
 	})
 
-	c.Specify("can specify custom process", func() {
-		c.Expect(Config.processId, Equals, "1")
+	c.Specify("NamespacedKey", func() {
+		config := mkDefaultConfig()
 
-		Configure(map[string]string{
-			"server":  "localhost:6379",
-			"process": "2",
+		c.Specify("normalises namespace colons", func() {
+			config.SetNamespace("prod")
+			c.Expect(config.NamespacedKey("queue"), Equals, "prod:queue")
+
+			config.SetNamespace("prod:")
+			c.Expect(config.NamespacedKey("queue"), Equals, "prod:queue")
+
+			config.SetNamespace("")
+			c.Expect(config.NamespacedKey("queue"), Equals, "queue")
 		})
 
-		c.Expect(Config.processId, Equals, "2")
+		c.Specify("joins multiple elements", func() {
+			config.SetNamespace("prod")
+			c.Expect(config.NamespacedKey("queue", "thing"), Equals, "prod:queue:thing")
+
+			config.SetNamespace("")
+			c.Expect(config.NamespacedKey("queue", "thing"), Equals, "queue:thing")
+		})
 	})
 
-	c.Specify("requires a server parameter", func() {
-		err := recoverOnPanic(func() {
-			Configure(map[string]string{"process": "2"})
+	c.Specify("TrimKeyNamespace", func() {
+		config := mkDefaultConfig()
+
+		c.Specify("normalises namespace colons", func() {
+			config.SetNamespace("prod")
+			c.Expect(config.TrimKeyNamespace("prod:queue"), Equals, "queue")
+
+			config.SetNamespace("prod:")
+			c.Expect(config.TrimKeyNamespace("prod:queue"), Equals, "queue")
+
+			config.SetNamespace("")
+			c.Expect(config.NamespacedKey("prod:queue"), Equals, "prod:queue")
 		})
-
-		c.Expect(err, Equals, "Configure requires a 'server' option, which identifies a Redis instance")
-	})
-
-	c.Specify("requires a process parameter", func() {
-		err := recoverOnPanic(func() {
-			Configure(map[string]string{"server": "localhost:6379"})
-		})
-
-		c.Expect(err, Equals, "Configure requires a 'process' option, which uniquely identifies this instance")
-	})
-
-	c.Specify("adds ':' to the end of the namespace", func() {
-		c.Expect(Config.Namespace, Equals, "")
-
-		Configure(map[string]string{
-			"server":    "localhost:6379",
-			"process":   "1",
-			"namespace": "prod",
-		})
-
-		c.Expect(Config.Namespace, Equals, "prod:")
-	})
-
-	c.Specify("defaults poll interval to 15 seconds", func() {
-		Configure(map[string]string{
-			"server":  "localhost:6379",
-			"process": "1",
-		})
-
-		c.Expect(Config.PollInterval, Equals, 15)
-	})
-
-	c.Specify("allows customization of poll interval", func() {
-		Configure(map[string]string{
-			"server":        "localhost:6379",
-			"process":       "1",
-			"poll_interval": "1",
-		})
-
-		c.Expect(Config.PollInterval, Equals, 1)
 	})
 }

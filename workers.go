@@ -7,86 +7,110 @@ import (
 	"net/http"
 	"os"
 	"sync"
-)
 
-const (
-	RETRY_KEY          = "goretry"
-	SCHEDULED_JOBS_KEY = "schedule"
+	"github.com/garyburd/redigo/redis"
 )
 
 var Logger WorkersLogger = log.New(os.Stdout, "workers: ", log.Ldate|log.Lmicroseconds)
 
-var managers = make(map[string]*manager)
-var schedule *scheduled
-var control = make(map[string]chan string)
-var access sync.Mutex
-var started bool
-
-var Middleware = NewMiddleware(
-	&MiddlewareLogging{},
-	&MiddlewareRetry{},
-	&MiddlewareStats{},
-)
-
-func Process(queue string, job jobFunc, concurrency int, mids ...Action) {
-	access.Lock()
-	defer access.Unlock()
-
-	managers[queue] = newManager(queue, job, concurrency, mids...)
+type Workers struct {
+	config      *config
+	managers    map[string]*manager
+	schedule    *scheduled
+	control     map[string]chan string
+	access      sync.Mutex
+	started     bool
+	beforeStart []func()
+	duringDrain []func()
 }
 
-func Run() {
-	Start()
-	go handleSignals()
-	waitForExit()
+// ensure that Workers struct fulfils GoWorkers interface
+var _ GoWorkers = (*Workers)(nil)
+
+func NewWorkers(config *config) *Workers {
+	return &Workers{
+		config:   config,
+		managers: make(map[string]*manager),
+		control:  make(map[string]chan string),
+		access:   sync.Mutex{},
+		started:  false,
+	}
 }
 
-func ResetManagers() error {
-	access.Lock()
-	defer access.Unlock()
+func newDefaultMiddlewares(config *config) *Middlewares {
+	return NewMiddleware(
+		&MiddlewareLogging{},
+		&MiddlewareRetry{config},
+		&MiddlewareStats{config},
+	)
+}
 
-	if started {
+func (w *Workers) RedisPool() *redis.Pool {
+	return w.config.Pool
+}
+
+func (w *Workers) Process(queue string, job jobFunc, concurrency int, mids ...Action) {
+	w.access.Lock()
+	defer w.access.Unlock()
+
+	w.managers[queue] = newManager(w.config, queue, job, concurrency, mids...)
+}
+
+func (w *Workers) Run() {
+	w.Start()
+	go w.handleSignals()
+	w.WaitForExit()
+}
+
+func (w *Workers) ResetManagers() error {
+	w.access.Lock()
+	defer w.access.Unlock()
+
+	if w.started {
 		return errors.New("Cannot reset worker managers while workers are running")
 	}
 
-	managers = make(map[string]*manager)
+	w.managers = make(map[string]*manager)
 
 	return nil
 }
 
-func Start() {
-	access.Lock()
-	defer access.Unlock()
+func (w *Workers) Start() {
+	w.access.Lock()
+	defer w.access.Unlock()
 
-	if started {
+	if w.started {
 		return
 	}
 
-	runHooks(beforeStart)
-	startSchedule()
-	startManagers()
+	runHooks(w.beforeStart)
+	w.startSchedule()
+	w.startManagers()
 
-	started = true
+	w.started = true
 }
 
-func Quit() {
-	access.Lock()
-	defer access.Unlock()
+func (w *Workers) Quit() {
+	w.access.Lock()
+	defer w.access.Unlock()
 
-	if !started {
+	if !w.started {
 		return
 	}
 
-	quitManagers()
-	quitSchedule()
-	runHooks(duringDrain)
-	waitForExit()
+	w.quitManagers()
+	w.quitSchedule()
+	runHooks(w.duringDrain)
+	w.WaitForExit()
 
-	started = false
+	w.started = false
 }
 
-func StatsServer(port int) {
-	http.HandleFunc("/stats", Stats)
+func StatsServer(workers *Workers, port int) {
+	statsClosure := func(w http.ResponseWriter, req *http.Request) {
+		Stats(workers, w, req)
+	}
+	http.HandleFunc("/stats", statsClosure)
 
 	Logger.Println("Stats are available at", fmt.Sprint("http://localhost:", port, "/stats"))
 
@@ -95,35 +119,35 @@ func StatsServer(port int) {
 	}
 }
 
-func startSchedule() {
-	if schedule == nil {
-		schedule = newScheduled(RETRY_KEY, SCHEDULED_JOBS_KEY)
+func (w *Workers) startSchedule() {
+	if w.schedule == nil {
+		w.schedule = newScheduled(w.config, w.config.retryQueue, w.config.scheduledJobsQueue)
 	}
 
-	schedule.start()
+	w.schedule.start()
 }
 
-func quitSchedule() {
-	if schedule != nil {
-		schedule.quit()
-		schedule = nil
+func (w *Workers) quitSchedule() {
+	if w.schedule != nil {
+		w.schedule.quit()
+		w.schedule = nil
 	}
 }
 
-func startManagers() {
-	for _, manager := range managers {
+func (w *Workers) startManagers() {
+	for _, manager := range w.managers {
 		manager.start()
 	}
 }
 
-func quitManagers() {
-	for _, m := range managers {
+func (w *Workers) quitManagers() {
+	for _, m := range w.managers {
 		go (func(m *manager) { m.quit() })(m)
 	}
 }
 
-func waitForExit() {
-	for _, manager := range managers {
+func (w *Workers) WaitForExit() {
+	for _, manager := range w.managers {
 		manager.Wait()
 	}
 }

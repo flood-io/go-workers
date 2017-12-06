@@ -1,6 +1,8 @@
 package workers
 
 import (
+	"errors"
+
 	"github.com/customerio/gospec"
 	. "github.com/customerio/gospec"
 
@@ -12,17 +14,17 @@ var failMiddlewareCalled bool
 
 type testMiddleware struct{}
 
-func (l *testMiddleware) Call(queue string, message *Msg, next func() bool) (result bool) {
+func (l *testMiddleware) Call(queue string, message *Msg, next func() error) (result error) {
 	testMiddlewareCalled = true
 	return next()
 }
 
 type failMiddleware struct{}
 
-func (l *failMiddleware) Call(queue string, message *Msg, next func() bool) (result bool) {
+func (l *failMiddleware) Call(queue string, message *Msg, next func() error) (result error) {
 	failMiddlewareCalled = true
 	next()
-	return false
+	return errors.New("failed")
 }
 
 func confirm(manager *manager) (msg *Msg) {
@@ -39,11 +41,15 @@ func confirm(manager *manager) (msg *Msg) {
 func WorkerSpec(c gospec.Context) {
 	var processed = make(chan *Args)
 
-	var testJob = (func(message *Msg) {
+	var testJob = (func(message *Msg) error {
 		processed <- message.Args()
+		return nil
 	})
 
-	manager := newManager("myqueue", testJob, 1)
+	config := mkDefaultConfig()
+	defaultMiddlewares := newDefaultMiddlewares(config)
+
+	manager := newManager(config, "myqueue", testJob, 1)
 
 	c.Specify("newWorker", func() {
 		c.Specify("it returns an instance of worker with connection to manager", func() {
@@ -83,7 +89,7 @@ func WorkerSpec(c gospec.Context) {
 		})
 
 		c.Specify("runs defined middleware and confirms", func() {
-			Middleware.Append(&testMiddleware{})
+			worker.manager.mids.Append(&testMiddleware{})
 
 			go worker.work(messages)
 			messages <- message
@@ -94,15 +100,11 @@ func WorkerSpec(c gospec.Context) {
 
 			worker.quit()
 
-			Middleware = NewMiddleware(
-				&MiddlewareLogging{},
-				&MiddlewareRetry{},
-				&MiddlewareStats{},
-			)
+			worker.manager.mids = defaultMiddlewares
 		})
 
 		c.Specify("doesn't confirm if middleware cancels acknowledgement", func() {
-			Middleware.Append(&failMiddleware{})
+			worker.manager.mids.Append(&failMiddleware{})
 
 			go worker.work(messages)
 			messages <- message
@@ -113,19 +115,16 @@ func WorkerSpec(c gospec.Context) {
 
 			worker.quit()
 
-			Middleware = NewMiddleware(
-				&MiddlewareLogging{},
-				&MiddlewareRetry{},
-				&MiddlewareStats{},
-			)
+			worker.manager.mids = defaultMiddlewares
 		})
 
-		c.Specify("recovers and confirms if job panics", func() {
-			var panicJob = (func(message *Msg) {
-				panic("AHHHHHHHHH")
+		c.Specify("recovers and cancels if job panics", func() {
+			var panicJob = (func(message *Msg) error {
+				panic("AHHHH")
+				return nil
 			})
 
-			manager := newManager("myqueue", panicJob, 1)
+			manager := newManager(config, "myqueue", panicJob, 1)
 			worker := newWorker(manager)
 
 			go worker.work(messages)

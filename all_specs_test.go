@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"os"
 	"testing"
 
 	"github.com/customerio/gospec"
@@ -17,19 +18,6 @@ func TestAllSpecs(t *testing.T) {
 
 	r.Parallel = false
 
-	r.BeforeEach = func() {
-		Configure(map[string]string{
-			"server":   "localhost:6379",
-			"process":  "1",
-			"database": "15",
-			"pool":     "1",
-		})
-
-		conn := Config.Pool.Get()
-		conn.Do("flushdb")
-		conn.Close()
-	}
-
 	// List all specs here
 	r.AddSpec(WorkersSpec)
 	r.AddSpec(ConfigSpec)
@@ -45,4 +33,46 @@ func TestAllSpecs(t *testing.T) {
 
 	// Run GoSpec and report any errors to gotest's `testing.T` instance
 	gospec.MainGoTest(r, t)
+}
+
+const defaultRedisURL = "redis://localhost:6379/0"
+
+func redisURL() string {
+	url := os.Getenv("REDIS_URL")
+
+	if url == "" {
+		return defaultRedisURL
+	}
+
+	return url
+}
+
+func mkConfig(c ConfigureOpts) (config *config, err error) {
+	config, err = Configure(c)
+	if err != nil {
+		return
+	}
+
+	conn := config.Pool.Get()
+	conn.Do("flushdb")
+	conn.Close()
+
+	return
+}
+
+func mkDefaultConfig() *config {
+	config, err := mkConfig(ConfigureOpts{
+		RedisURL:  redisURL(),
+		ProcessID: "1",
+		Namespace: "prod",
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	return config
+}
+
+func mkWorkers(config *config) *Workers {
+	return NewWorkers(config)
 }

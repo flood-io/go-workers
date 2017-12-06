@@ -12,45 +12,45 @@ const (
 	LAYOUT            = "2006-01-02 15:04:05 MST"
 )
 
-type MiddlewareRetry struct{}
+type MiddlewareRetry struct {
+	config *config
+}
 
-func (r *MiddlewareRetry) Call(queue string, message *Msg, next func() bool) (acknowledge bool) {
-	defer func() {
-		if e := recover(); e != nil {
-			conn := Config.Pool.Get()
+func (r *MiddlewareRetry) Call(queue string, message *Msg, next func() error) (err error) {
+	err = next()
+
+	if err != nil {
+		if retry(message) {
+			conn := r.config.Pool.Get()
 			defer conn.Close()
 
-			if retry(message) {
-				message.Set("queue", queue)
-				message.Set("error_message", fmt.Sprintf("%v", e))
-				retryCount := incrementRetry(message)
+			message.Set("queue", queue)
+			message.Set("error_message", fmt.Sprintf("%v", err))
+			retryCount := incrementRetry(message)
+			err = nil
 
-				waitDuration := durationToSecondsWithNanoPrecision(
-					time.Duration(
-						secondsToDelay(retryCount),
-					) * time.Second,
-				)
+			waitDuration := durationToSecondsWithNanoPrecision(
+				time.Duration(
+					secondsToDelay(retryCount),
+				) * time.Second,
+			)
 
-				_, err := conn.Do(
-					"zadd",
-					Config.Namespace+RETRY_KEY,
-					nowToSecondsWithNanoPrecision()+waitDuration,
-					message.ToJson(),
-				)
+			_, err = conn.Do(
+				"zadd",
+				r.config.NamespacedKey(r.config.retryQueue),
+				nowToSecondsWithNanoPrecision()+waitDuration,
+				message.ToJson(),
+			)
 
-				// If we can't add the job to the retry queue,
-				// then we shouldn't acknowledge the job, otherwise
-				// it'll disappear into the void.
-				if err != nil {
-					acknowledge = false
-				}
+			// If we can't add the job to the retry queue,
+			// then we shouldn't return the error, otherwise
+			// it'll disappear into the void.
+			if err != nil {
+				Logger.Printf("failed to add job to retry %v", err)
+				err = nil
 			}
-
-			panic(e)
 		}
-	}()
-
-	acknowledge = next()
+	}
 
 	return
 }

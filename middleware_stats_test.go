@@ -1,27 +1,30 @@
 package workers
 
 import (
+	"errors"
+	"time"
+
 	"github.com/customerio/gospec"
 	. "github.com/customerio/gospec"
 	"github.com/garyburd/redigo/redis"
-	"time"
 )
 
 func MiddlewareStatsSpec(c gospec.Context) {
-	var job = (func(message *Msg) {
+	var job = (func(message *Msg) error {
 		// noop
+		return nil
 	})
 
+	config := mkDefaultConfig()
+	config.SetNamespace("prod:")
+
 	layout := "2006-01-02"
-	manager := newManager("myqueue", job, 1)
+	manager := newManager(config, "myqueue", job, 1)
 	worker := newWorker(manager)
 	message, _ := NewMsg("{\"jid\":\"2\",\"retry\":true}")
 
-	was := Config.Namespace
-	Config.Namespace = "prod:"
-
 	c.Specify("increments processed stats", func() {
-		conn := Config.Pool.Get()
+		conn := config.Pool.Get()
 		defer conn.Close()
 
 		count, _ := redis.Int(conn.Do("get", "prod:stat:processed"))
@@ -40,15 +43,15 @@ func MiddlewareStatsSpec(c gospec.Context) {
 	})
 
 	c.Specify("failed job", func() {
-		var job = (func(message *Msg) {
-			panic("AHHHH")
+		var job = (func(message *Msg) error {
+			return errors.New("AHHHH")
 		})
 
-		manager := newManager("myqueue", job, 1)
+		manager := newManager(config, "myqueue", job, 1)
 		worker := newWorker(manager)
 
 		c.Specify("increments failed stats", func() {
-			conn := Config.Pool.Get()
+			conn := config.Pool.Get()
 			defer conn.Close()
 
 			count, _ := redis.Int(conn.Do("get", "prod:stat:failed"))
@@ -66,6 +69,4 @@ func MiddlewareStatsSpec(c gospec.Context) {
 			c.Expect(dayCount, Equals, 1)
 		})
 	})
-
-	Config.Namespace = was
 }

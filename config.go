@@ -1,70 +1,82 @@
 package workers
 
 import (
-	"strconv"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
 )
 
-type config struct {
-	processId    string
-	Namespace    string
+const (
+	defaultRetryQueue         = "goretry"
+	defaultScheduledJobsQueue = "schedule"
+)
+
+type ConfigureOpts struct {
+	// RedisURL is a redis schemed URL as understood by redigo:
+	// https://godoc.org/github.com/garyburd/redigo/redis#DialURL
+	RedisURL string
+
+	// ProcessID uniquely identifies this process. Used for uncoordinated reliable processing of messages.
+	ProcessID string
+
+	// MaxIdle is the maximum number of idle connections to keep in the redis connection pool.
+	MaxIdle int
+
+	// PoolSize is the maximum number of connections allowed by the redis conneciton pool.
+	PoolSize int
+
+	// PollInterval is how often we should poll for scheduled jobs.
 	PollInterval int
-	Pool         *redis.Pool
-	Fetch        func(queue string) Fetcher
+
+	// Namespace is the namespace to use for redis keys.
+	Namespace string
 }
 
-var Config *config
+type config struct {
+	processId          string
+	PollInterval       int
+	Pool               *redis.Pool
+	Fetch              func(queue string) Fetcher
+	GlobalMiddlewares  *Middlewares
+	namespace          string
+	namespaceWithColon string
 
-func Configure(options map[string]string) {
-	var poolSize int
-	var namespace string
-	var pollInterval int
+	retryQueue         string
+	scheduledJobsQueue string
+}
 
-	if options["server"] == "" {
-		panic("Configure requires a 'server' option, which identifies a Redis instance")
-	}
-	if options["process"] == "" {
-		panic("Configure requires a 'process' option, which uniquely identifies this instance")
-	}
-	if options["pool"] == "" {
-		options["pool"] = "1"
-	}
-	if options["namespace"] != "" {
-		namespace = options["namespace"] + ":"
-	}
-	if seconds, err := strconv.Atoi(options["poll_interval"]); err == nil {
-		pollInterval = seconds
-	} else {
-		pollInterval = 15
+func Configure(cfg ConfigureOpts) (configObj *config, err error) {
+	if cfg.RedisURL == "" {
+		err = errors.New("workers.Configure requires RedisURL to connect to redis.")
+		return
 	}
 
-	poolSize, _ = strconv.Atoi(options["pool"])
+	if cfg.ProcessID == "" {
+		err = errors.New("workers.Configure requires ProcessID to uniquely identify this worker process.")
+		return
+	}
 
-	Config = &config{
-		options["process"],
-		namespace,
-		pollInterval,
-		&redis.Pool{
-			MaxIdle:     poolSize,
+	if cfg.PollInterval == 0 {
+		cfg.PollInterval = 15
+	}
+
+	if cfg.MaxIdle == 0 {
+		cfg.MaxIdle = cfg.PoolSize
+	}
+
+	configObj = &config{
+		processId:    cfg.ProcessID,
+		PollInterval: cfg.PollInterval,
+		Pool: &redis.Pool{
+			MaxIdle:     cfg.MaxIdle,
+			MaxActive:   cfg.PoolSize,
 			IdleTimeout: 240 * time.Second,
 			Dial: func() (redis.Conn, error) {
-				c, err := redis.Dial("tcp", options["server"])
+				c, err := redis.DialURL(cfg.RedisURL)
 				if err != nil {
 					return nil, err
-				}
-				if options["password"] != "" {
-					if _, err := c.Do("AUTH", options["password"]); err != nil {
-						c.Close()
-						return nil, err
-					}
-				}
-				if options["database"] != "" {
-					if _, err := c.Do("SELECT", options["database"]); err != nil {
-						c.Close()
-						return nil, err
-					}
 				}
 				return c, err
 			},
@@ -73,8 +85,40 @@ func Configure(options map[string]string) {
 				return err
 			},
 		},
-		func(queue string) Fetcher {
-			return NewFetch(queue, make(chan *Msg), make(chan bool))
-		},
+		retryQueue:         defaultRetryQueue,
+		scheduledJobsQueue: defaultScheduledJobsQueue,
 	}
+
+	configObj.SetNamespace(cfg.Namespace)
+
+	configObj.GlobalMiddlewares = newDefaultMiddlewares(configObj)
+
+	// closes over configObj
+	configObj.Fetch = func(queue string) Fetcher {
+		return NewFetch(configObj, queue, make(chan *Msg), make(chan bool))
+	}
+
+	return
+}
+
+func (c *config) Namespace() string {
+	return c.namespace
+}
+
+func (c *config) SetNamespace(newNamespace string) {
+	if newNamespace == "" {
+		c.namespace = ""
+		c.namespaceWithColon = ""
+	} else {
+		c.namespace = strings.TrimSuffix(newNamespace, ":")
+		c.namespaceWithColon = c.namespace + ":"
+	}
+}
+
+func (c *config) NamespacedKey(keys ...string) string {
+	return c.namespaceWithColon + strings.Join(keys, ":")
+}
+
+func (c *config) TrimKeyNamespace(key string) string {
+	return strings.TrimPrefix(key, c.namespaceWithColon)
 }
