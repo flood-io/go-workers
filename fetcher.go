@@ -100,7 +100,7 @@ func (f *fetch) tryFetchMessage(messages chan string) {
 
 	if err != nil {
 		// If redis returns null, the queue is empty. Just ignore the error.
-		if err.Error() != "redigo: nil returned" {
+		if err != redis.ErrNil {
 			Logger.Println("ERR: ", err)
 			time.Sleep(1 * time.Second)
 		}
