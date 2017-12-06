@@ -39,7 +39,6 @@ func NewWorkers(config *config) *Workers {
 
 func newDefaultMiddlewares(config *config) *Middlewares {
 	return NewMiddleware(
-		&MiddlewareLogging{},
 		&MiddlewareRetry{config},
 		&MiddlewareStats{config},
 	)
