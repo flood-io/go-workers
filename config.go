@@ -32,6 +32,8 @@ type ConfigureOpts struct {
 
 	// Namespace is the namespace to use for redis keys.
 	Namespace string
+
+	RedisPool *redis.Pool
 }
 
 type config struct {
@@ -48,9 +50,15 @@ type config struct {
 }
 
 func Configure(cfg ConfigureOpts) (configObj *config, err error) {
-	if cfg.RedisURL == "" {
-		err = errors.New("workers.Configure requires RedisURL to connect to redis.")
-		return
+	var redisPool *redis.Pool
+
+	if cfg.RedisPool != nil {
+		redisPool = cfg.RedisPool
+	} else {
+		redisPool, err = initRedisPool(cfg)
+		if err != nil {
+			return
+		}
 	}
 
 	if cfg.ProcessID == "" {
@@ -62,29 +70,10 @@ func Configure(cfg ConfigureOpts) (configObj *config, err error) {
 		cfg.PollInterval = 15
 	}
 
-	if cfg.MaxIdle == 0 {
-		cfg.MaxIdle = cfg.PoolSize
-	}
-
 	configObj = &config{
-		processId:    cfg.ProcessID,
-		PollInterval: cfg.PollInterval,
-		Pool: &redis.Pool{
-			MaxIdle:     cfg.MaxIdle,
-			MaxActive:   cfg.PoolSize,
-			IdleTimeout: 240 * time.Second,
-			Dial: func() (redis.Conn, error) {
-				c, err := redis.DialURL(cfg.RedisURL)
-				if err != nil {
-					return nil, err
-				}
-				return c, err
-			},
-			TestOnBorrow: func(c redis.Conn, t time.Time) error {
-				_, err := c.Do("PING")
-				return err
-			},
-		},
+		processId:          cfg.ProcessID,
+		PollInterval:       cfg.PollInterval,
+		Pool:               redisPool,
 		retryQueue:         defaultRetryQueue,
 		scheduledJobsQueue: defaultScheduledJobsQueue,
 	}
@@ -98,6 +87,35 @@ func Configure(cfg ConfigureOpts) (configObj *config, err error) {
 		return NewFetch(configObj, queue, make(chan *Msg), make(chan bool))
 	}
 
+	return
+}
+
+func initRedisPool(cfg ConfigureOpts) (redisPool *redis.Pool, err error) {
+	if cfg.RedisURL == "" {
+		err = errors.New("workers.Configure requires RedisURL to connect to redis.")
+		return
+	}
+
+	if cfg.MaxIdle == 0 {
+		cfg.MaxIdle = cfg.PoolSize
+	}
+
+	redisPool = &redis.Pool{
+		MaxIdle:     cfg.MaxIdle,
+		MaxActive:   cfg.PoolSize,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.DialURL(cfg.RedisURL)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}
 	return
 }
 
