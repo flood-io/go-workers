@@ -159,7 +159,7 @@ func ManagerSpec(c gospec.Context) {
 			manager := newManager(config, "manager2", testJob, 10)
 			manager.start()
 
-			manager.prepare()
+			manager.prepareForQuit()
 
 			conn.Do("lpush", "prod:queue:manager2", message)
 			conn.Do("lpush", "prod:queue:manager2", message2)
