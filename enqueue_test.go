@@ -2,6 +2,8 @@ package workers
 
 import (
 	"encoding/json"
+	"fmt"
+	"testing"
 
 	"github.com/customerio/gospec"
 	. "github.com/customerio/gospec"
@@ -121,4 +123,38 @@ func EnqueueSpec(c gospec.Context) {
 			conn.Do("del", scheduleQueue)
 		})
 	})
+}
+
+var storedJID string
+
+func BenchmarkEnqueueNullRedis(b *testing.B) {
+	conn := &NullMockRedisConn{}
+
+	config := mkMockConfig(conn)
+	w := mkWorkers(config)
+
+	b.ResetTimer()
+	var jid string
+	var err error
+	for i := 0; i < b.N; i++ {
+		if jid, err = w.Enqueue("q", "c", fmt.Sprintf("hello-%d", i)); err != nil {
+			b.Fatal(err)
+		}
+	}
+	storedJID = jid
+}
+
+func BenchmarkEnqueueRealRedis(b *testing.B) {
+	config := mkDefaultConfig()
+	w := mkWorkers(config)
+
+	b.ResetTimer()
+	var jid string
+	var err error
+	for i := 0; i < b.N; i++ {
+		if jid, err = w.Enqueue("q", "c", fmt.Sprintf("hello-%d", i)); err != nil {
+			b.Fatal(err)
+		}
+	}
+	storedJID = jid
 }

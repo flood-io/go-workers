@@ -2,6 +2,7 @@ package workers
 
 import (
 	"errors"
+	"testing"
 
 	"github.com/customerio/gospec"
 	. "github.com/customerio/gospec"
@@ -134,5 +135,51 @@ func WorkerSpec(c gospec.Context) {
 
 			worker.quit()
 		})
+	})
+}
+
+func BenchmarkWorkMockedRedis(b *testing.B) {
+	acknowledged := make(chan string)
+	queue := make(chan interface{})
+
+	const msgString = `{"jid":"x","queue":"namespacy:queue:name:ok","args":{"foops":["hello"]},"enqueued_at":"100123917231"}`
+
+	conn := &FuncMockRedisConn{
+		DoFn: func(commandName string, args ...interface{}) (reply interface{}, err error) {
+			switch commandName {
+			case "brpoplpush":
+				return <-queue, nil
+			case "lrem":
+				acknowledged <- args[2].(string)
+			case "zrangebyscore":
+				return []interface{}{}, nil
+			case "lrange":
+				return []interface{}{}, nil
+			case "exec":
+			case "flushdb":
+			case "":
+			default:
+				b.Log("unknown cmd", commandName) //, string(debug.Stack()))
+			}
+			return nil, nil
+		},
+	}
+
+	config := mkMockConfig(conn)
+	w := mkWorkers(config)
+
+	job := func(message *Msg) error {
+		return nil
+	}
+
+	w.Process("q", job, 1)
+	w.Start()
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			queue <- msgString
+			<-acknowledged
+		}
 	})
 }

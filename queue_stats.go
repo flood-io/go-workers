@@ -1,6 +1,8 @@
 package workers
 
 import (
+	"fmt"
+
 	"github.com/garyburd/redigo/redis"
 )
 
@@ -16,19 +18,25 @@ type QueueDepth struct {
 }
 
 func (w *Workers) QueueStats() (queueStats *QueueStats, err error) {
-	queueStats = &QueueStats{
-		Queues: make([]*QueueDepth, len(w.managers)),
-	}
-
 	config := w.config
 	conn := config.Pool.Get()
 	defer conn.Close()
 
+	queues, err := redis.Strings(conn.Do("SMEMBERS", config.NamespacedKey("queues")))
+	if err != nil {
+		return
+	}
+
+	queueStats = &QueueStats{
+		Queues: make([]*QueueDepth, len(queues)),
+	}
+
 	conn.Send("zcard", config.NamespacedKey(w.config.retryQueue))
 	i := 0
-	for queue, manager := range w.managers {
+	for _, queue := range queues {
 		conn.Send("llen", config.NamespacedKey("queue", queue))
-		conn.Send("llen", config.NamespacedKey(manager.fetch.InprogressQueue()))
+		inprogressQueue := fmt.Sprint(queue, ":", config.processId, ":inprogress")
+		conn.Send("llen", config.NamespacedKey(inprogressQueue))
 		i++
 	}
 	conn.Flush()
@@ -39,8 +47,7 @@ func (w *Workers) QueueStats() (queueStats *QueueStats, err error) {
 	}
 	queueStats.RetryDepth = retryDepth
 
-	i = 0
-	for queue, _ := range w.managers {
+	for i, queue := range queues {
 		var queued, inprogress int
 		queued, err = redis.Int(conn.Receive())
 		if err != nil {
