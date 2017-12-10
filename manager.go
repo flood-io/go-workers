@@ -110,7 +110,7 @@ func newManager(config *config, queue string, job jobFunc, concurrency int, mids
 		&sync.WaitGroup{},
 	}
 
-	m.fetch = config.Fetch(m.queue)
+	m.reset()
 
 	return m
 }
