@@ -26,7 +26,7 @@ func (m *manager) start() {
 	go m.manage()
 }
 
-func (m *manager) prepare() {
+func (m *manager) prepareForQuit() {
 	if !m.fetch.Closed() {
 		m.fetch.Close()
 	}
@@ -34,7 +34,7 @@ func (m *manager) prepare() {
 
 func (m *manager) quit() {
 	Logger.Println("quitting queue", m.queueName(), "(waiting for", m.processing(), "/", len(m.workers), "workers).")
-	m.prepare()
+	m.prepareForQuit()
 
 	m.workersM.Lock()
 	for _, worker := range m.workers {
