@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
 )
@@ -13,16 +14,16 @@ type worker struct {
 	startedAt  int64
 }
 
-func (w *worker) start() {
-	go w.work(w.manager.fetch.Messages())
+func (w *worker) start(ctx context.Context) {
+	go w.work(ctx, w.manager.fetch.Messages())
 }
 
-func (w *worker) quit() {
+func (w *worker) quit(ctx context.Context) {
 	w.stop <- true
 	<-w.exit
 }
 
-func (w *worker) work(messages chan *Msg) {
+func (w *worker) work(ctx context.Context, messages chan *Msg) {
 	for {
 		select {
 		case message := <-messages:
@@ -68,7 +69,7 @@ func (w *worker) process(message *Msg) (err error) {
 	})
 }
 
-func (w *worker) processing() bool {
+func (w *worker) isProcessing() bool {
 	return atomic.LoadInt64(&w.startedAt) > 0
 }
 

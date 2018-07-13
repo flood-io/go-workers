@@ -1,6 +1,8 @@
 package workers
 
 import (
+	"context"
+
 	"github.com/customerio/gospec"
 	. "github.com/customerio/gospec"
 	"github.com/garyburd/redigo/redis"
@@ -9,7 +11,7 @@ import (
 func buildFetch(config *config, queue string) Fetcher {
 	manager := newManager(config, queue, nil, 1)
 	fetch := manager.fetch
-	go fetch.Fetch()
+	go fetch.Fetch(context.Background())
 	return fetch
 }
 
@@ -78,7 +80,7 @@ func FetchSpec(c gospec.Context) {
 			fetch.Ready() <- true
 			<-fetch.Messages()
 
-			fetch.Acknowledge(message)
+			fetch.Acknowledge(context.Background(), message)
 
 			len, _ := redis.Int(conn.Do("llen", "queue:fetchQueue4:1:inprogress"))
 			c.Expect(len, Equals, 0)
@@ -102,7 +104,7 @@ func FetchSpec(c gospec.Context) {
 			fetch.Ready() <- true
 			<-fetch.Messages()
 
-			fetch.Acknowledge(message)
+			fetch.Acknowledge(context.Background(), message)
 
 			len, _ := redis.Int(conn.Do("llen", "queue:fetchQueue5:1:inprogress"))
 			c.Expect(len, Equals, 0)
@@ -130,9 +132,10 @@ func FetchSpec(c gospec.Context) {
 			fetch.Ready() <- true
 			c.Expect(<-fetch.Messages(), Equals, message3)
 
-			fetch.Acknowledge(message)
-			fetch.Acknowledge(message2)
-			fetch.Acknowledge(message3)
+			ctx := context.Background()
+			fetch.Acknowledge(ctx, message)
+			fetch.Acknowledge(ctx, message2)
+			fetch.Acknowledge(ctx, message3)
 
 			len, _ := redis.Int(conn.Do("llen", "queue:fetchQueue6:1:inprogress"))
 			c.Expect(len, Equals, 0)

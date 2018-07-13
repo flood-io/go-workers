@@ -1,14 +1,15 @@
 package workers
 
 import (
+	"context"
 	"time"
 )
 
 type GoWorkers interface {
-	Run()
-	Start()
-	Quit()
-	WaitForExit()
+	Run(ctx context.Context) error
+	Start(ctx context.Context)
+	Quit(ctx context.Context)
+	WaitForExit(ctx context.Context)
 	ResetManagers() error
 
 	Process(queue string, job jobFunc, concurrency int, mids ...Action)

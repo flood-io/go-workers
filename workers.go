@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -55,10 +56,11 @@ func (w *Workers) Process(queue string, job jobFunc, concurrency int, mids ...Ac
 	w.managers[queue] = newManager(w.config, queue, job, concurrency, mids...)
 }
 
-func (w *Workers) Run() {
-	w.Start()
+func (w *Workers) Run(ctx context.Context) error {
+	w.Start(ctx)
 	go w.handleSignals()
-	w.WaitForExit()
+	w.WaitForExit(ctx)
+	return nil
 }
 
 func (w *Workers) ResetManagers() error {
@@ -74,7 +76,7 @@ func (w *Workers) ResetManagers() error {
 	return nil
 }
 
-func (w *Workers) Start() {
+func (w *Workers) Start(ctx context.Context) {
 	w.access.Lock()
 	defer w.access.Unlock()
 
@@ -83,13 +85,13 @@ func (w *Workers) Start() {
 	}
 
 	runHooks(w.beforeStart)
-	w.startSchedule()
-	w.startManagers()
+	w.startSchedule(ctx)
+	w.startManagers(ctx)
 
 	w.started = true
 }
 
-func (w *Workers) Quit() {
+func (w *Workers) Quit(ctx context.Context) {
 	w.access.Lock()
 	defer w.access.Unlock()
 
@@ -97,10 +99,10 @@ func (w *Workers) Quit() {
 		return
 	}
 
-	w.quitManagers()
-	w.quitSchedule()
+	w.quitManagers(ctx)
+	w.quitSchedule(ctx)
 	runHooks(w.duringDrain)
-	w.WaitForExit()
+	w.WaitForExit(ctx)
 
 	w.started = false
 }
@@ -118,34 +120,34 @@ func StatsServer(workers *Workers, port int) {
 	}
 }
 
-func (w *Workers) startSchedule() {
+func (w *Workers) startSchedule(ctx context.Context) {
 	if w.schedule == nil {
 		w.schedule = newScheduled(w.config, w.config.retryQueue, w.config.scheduledJobsQueue)
 	}
 
-	w.schedule.start()
+	w.schedule.start(ctx)
 }
 
-func (w *Workers) quitSchedule() {
+func (w *Workers) quitSchedule(ctx context.Context) {
 	if w.schedule != nil {
-		w.schedule.quit()
+		w.schedule.quit(ctx)
 		w.schedule = nil
 	}
 }
 
-func (w *Workers) startManagers() {
+func (w *Workers) startManagers(ctx context.Context) {
 	for _, manager := range w.managers {
-		manager.start()
+		manager.start(ctx)
 	}
 }
 
-func (w *Workers) quitManagers() {
+func (w *Workers) quitManagers(ctx context.Context) {
 	for _, m := range w.managers {
-		go (func(m *manager) { m.quit() })(m)
+		go (func(m *manager) { m.quit(ctx) })(m)
 	}
 }
 
-func (w *Workers) WaitForExit() {
+func (w *Workers) WaitForExit(ctx context.Context) {
 	for _, manager := range w.managers {
 		manager.Wait()
 	}

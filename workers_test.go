@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/customerio/gospec"
@@ -20,16 +21,17 @@ func WorkersSpec(c gospec.Context) {
 		w := mkWorkers(config)
 
 		c.Specify("allows running in tests", func() {
+			ctx := context.Background()
 			called = make(chan bool)
 
 			w.Process("myqueue", myJob, 10)
 
-			w.Start()
+			w.Start(ctx)
 
 			w.Enqueue("myqueue", "Add", []int{1, 2})
 			<-called
 
-			w.Quit()
+			w.Quit(ctx)
 		})
 
 		// TODO make this test more deterministic, randomly locks up in travis.
@@ -50,6 +52,7 @@ func WorkersSpec(c gospec.Context) {
 		//})
 
 		c.Specify("runs beforeStart hooks", func() {
+			ctx := context.Background()
 			hooks := []string{}
 
 			w.BeforeStart(func() {
@@ -62,14 +65,15 @@ func WorkersSpec(c gospec.Context) {
 				hooks = append(hooks, "3")
 			})
 
-			w.Start()
+			w.Start(ctx)
 
 			c.Expect(reflect.DeepEqual(hooks, []string{"1", "2", "3"}), IsTrue)
 
-			w.Quit()
+			w.Quit(ctx)
 		})
 
 		c.Specify("runs beforeStart hooks", func() {
+			ctx := context.Background()
 			hooks := []string{}
 
 			w.DuringDrain(func() {
@@ -82,11 +86,11 @@ func WorkersSpec(c gospec.Context) {
 				hooks = append(hooks, "3")
 			})
 
-			w.Start()
+			w.Start(ctx)
 
 			c.Expect(reflect.DeepEqual(hooks, []string{}), IsTrue)
 
-			w.Quit()
+			w.Quit(ctx)
 
 			c.Expect(reflect.DeepEqual(hooks, []string{"1", "2", "3"}), IsTrue)
 		})

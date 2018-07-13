@@ -1,6 +1,8 @@
 package workers
 
 import (
+	"context"
+
 	"github.com/customerio/gospec"
 	. "github.com/customerio/gospec"
 	"github.com/garyburd/redigo/redis"
@@ -26,7 +28,7 @@ func ScheduledSpec(c gospec.Context) {
 		conn.Do("zadd", "prod:"+config.retryQueue, now-10.0, message2.ToJson())
 		conn.Do("zadd", "prod:"+config.retryQueue, now+60.0, message3.ToJson())
 
-		scheduled.poll()
+		scheduled.poll(context.Background())
 
 		defaultCount, _ := redis.Int(conn.Do("llen", "prod:queue:default"))
 		myqueueCount, _ := redis.Int(conn.Do("llen", "prod:queue:myqueue"))

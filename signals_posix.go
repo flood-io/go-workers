@@ -3,6 +3,7 @@
 package workers
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,7 +16,7 @@ func (w *Workers) handleSignals() {
 	for sig := range signals {
 		switch sig {
 		case syscall.SIGINT, syscall.SIGUSR1, syscall.SIGTERM:
-			w.Quit()
+			w.Quit(context.Background())
 		}
 	}
 }

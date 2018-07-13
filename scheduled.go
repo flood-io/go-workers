@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"context"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
@@ -13,28 +14,32 @@ type scheduled struct {
 	exit   chan bool
 }
 
-func (s *scheduled) start() {
+func (s *scheduled) start(ctx context.Context) {
 	go (func() {
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case <-s.closed:
 				return
-			default:
+			case <-time.After(time.Duration(s.config.PollInterval) * time.Second):
+				s.poll(ctx)
 			}
-
-			s.poll()
-
-			time.Sleep(time.Duration(s.config.PollInterval) * time.Second)
 		}
 	})()
 }
 
-func (s *scheduled) quit() {
+func (s *scheduled) quit(ctx context.Context) {
 	close(s.closed)
 }
 
-func (s *scheduled) poll() {
+func (s *scheduled) poll(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		return
+	}
 	conn := s.config.Pool.Get()
+	defer conn.Close()
 
 	now := nowToSecondsWithNanoPrecision()
 
@@ -57,8 +62,6 @@ func (s *scheduled) poll() {
 			}
 		}
 	}
-
-	conn.Close()
 }
 
 func newScheduled(config *config, keys ...string) *scheduled {

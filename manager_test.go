@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -55,7 +56,7 @@ func ManagerSpec(c gospec.Context) {
 
 		c.Specify("sets job function", func() {
 			manager := newManager(config, "myqueue", testJob, 10)
-			c.Expect(fmt.Sprint(manager.job), Equals, fmt.Sprint(testJob))
+			c.Expect(fmt.Sprintf("%p", manager.job), Equals, fmt.Sprintf("%p", testJob))
 		})
 
 		c.Specify("sets worker concurrency", func() {
@@ -91,12 +92,12 @@ func ManagerSpec(c gospec.Context) {
 			conn.Do("lpush", "prod:queue:manager1", message.ToJson())
 			conn.Do("lpush", "prod:queue:manager1", message2.ToJson())
 
-			manager.start()
+			manager.start(context.Background())
 
 			c.Expect(<-processed, Equals, message.Args())
 			c.Expect(<-processed, Equals, message2.Args())
 
-			manager.quit()
+			manager.quit(context.Background())
 
 			len, _ := redis.Int(conn.Do("llen", "prod:queue:manager1"))
 			c.Expect(len, Equals, 0)
@@ -127,9 +128,10 @@ func ManagerSpec(c gospec.Context) {
 			conn.Do("lpush", "prod:queue:manager2", message.ToJson())
 			conn.Do("lpush", "prod:queue:manager3", message.ToJson())
 
-			manager1.start()
-			manager2.start()
-			manager3.start()
+			ctx := context.Background()
+			manager1.start(ctx)
+			manager2.start(ctx)
+			manager3.start(ctx)
 
 			<-processed
 			<-processed
@@ -150,21 +152,23 @@ func ManagerSpec(c gospec.Context) {
 				IsTrue,
 			)
 
-			manager1.quit()
-			manager2.quit()
-			manager3.quit()
+			ctx = context.Background()
+			manager1.quit(ctx)
+			manager2.quit(ctx)
+			manager3.quit(ctx)
 		})
 
 		c.Specify("prepare stops fetching new messages from queue", func() {
+			ctx := context.Background()
 			manager := newManager(config, "manager2", testJob, 10)
-			manager.start()
+			manager.start(ctx)
 
-			manager.prepareForQuit()
+			manager.prepareForQuit(ctx)
 
 			conn.Do("lpush", "prod:queue:manager2", message)
 			conn.Do("lpush", "prod:queue:manager2", message2)
 
-			manager.quit()
+			manager.quit(ctx)
 
 			len, _ := redis.Int(conn.Do("llen", "prod:queue:manager2"))
 			c.Expect(len, Equals, 2)

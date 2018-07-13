@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -9,8 +10,8 @@ import (
 
 type Fetcher interface {
 	Queue() string
-	Fetch()
-	Acknowledge(*Msg)
+	Fetch(context.Context)
+	Acknowledge(context.Context, *Msg)
 	Ready() chan bool
 	FinishedWork() chan bool
 	Messages() chan *Msg
@@ -49,19 +50,19 @@ func (f *fetch) Queue() string {
 	return f.queue
 }
 
-func (f *fetch) processOldMessages() {
-	messages := f.inprogressMessages()
+func (f *fetch) processOldMessages(ctx context.Context) {
+	messages := f.inprogressMessages(ctx)
 
 	for _, message := range messages {
 		<-f.Ready()
-		f.sendMessage(message)
+		f.sendMessage(ctx, message)
 	}
 }
 
-func (f *fetch) Fetch() {
+func (f *fetch) Fetch(ctx context.Context) {
 	messages := make(chan string)
 
-	f.processOldMessages()
+	f.processOldMessages(ctx)
 
 	go func(c chan string) {
 		for {
@@ -70,18 +71,18 @@ func (f *fetch) Fetch() {
 				break
 			}
 			<-f.Ready()
-			f.tryFetchMessage(c)
+			f.tryFetchMessage(ctx, c)
 		}
 	}(messages)
 
-	f.handleMessages(messages)
+	f.handleMessages(ctx, messages)
 }
 
-func (f *fetch) handleMessages(messages chan string) {
+func (f *fetch) handleMessages(ctx context.Context, messages chan string) {
 	for {
 		select {
 		case message := <-messages:
-			f.sendMessage(message)
+			f.sendMessage(ctx, message)
 		case <-f.stop:
 			// Stop the redis-polling goroutine
 			close(f.closed)
@@ -92,7 +93,12 @@ func (f *fetch) handleMessages(messages chan string) {
 	}
 }
 
-func (f *fetch) tryFetchMessage(messages chan string) {
+func (f *fetch) tryFetchMessage(ctx context.Context, messages chan string) {
+	select {
+	case <-ctx.Done():
+		return
+	}
+
 	conn := f.config.Pool.Get()
 	defer conn.Close()
 
@@ -109,7 +115,7 @@ func (f *fetch) tryFetchMessage(messages chan string) {
 	}
 }
 
-func (f *fetch) sendMessage(message string) {
+func (f *fetch) sendMessage(ctx context.Context, message string) {
 	msg, err := NewMsg(message)
 
 	if err != nil {
@@ -120,7 +126,12 @@ func (f *fetch) sendMessage(message string) {
 	f.Messages() <- msg
 }
 
-func (f *fetch) Acknowledge(message *Msg) {
+func (f *fetch) Acknowledge(ctx context.Context, message *Msg) {
+	select {
+	case <-ctx.Done():
+		return
+	}
+
 	conn := f.config.Pool.Get()
 	defer conn.Close()
 	conn.Do("lrem", f.inprogressQueue, -1, message.OriginalJson())
@@ -152,7 +163,11 @@ func (f *fetch) Closed() bool {
 	}
 }
 
-func (f *fetch) inprogressMessages() []string {
+func (f *fetch) inprogressMessages(ctx context.Context) []string {
+	select {
+	case <-ctx.Done():
+		return []string{}
+	}
 	conn := f.config.Pool.Get()
 	defer conn.Close()
 

@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -65,7 +66,8 @@ func WorkerSpec(c gospec.Context) {
 		message, _ := NewMsg("{\"jid\":\"2309823\",\"args\":[\"foo\",\"bar\"]}")
 
 		c.Specify("calls job with message args", func() {
-			go worker.work(messages)
+			ctx := context.Background()
+			go worker.work(ctx, messages)
 			messages <- message
 
 			args, _ := (<-processed).Array()
@@ -75,46 +77,49 @@ func WorkerSpec(c gospec.Context) {
 			c.Expect(args[0], Equals, "foo")
 			c.Expect(args[1], Equals, "bar")
 
-			worker.quit()
+			worker.quit(ctx)
 		})
 
 		c.Specify("confirms job completed", func() {
-			go worker.work(messages)
+			ctx := context.Background()
+			go worker.work(ctx, messages)
 			messages <- message
 
 			<-processed
 
 			c.Expect(confirm(manager), Equals, message)
 
-			worker.quit()
+			worker.quit(ctx)
 		})
 
 		c.Specify("runs defined middleware and confirms", func() {
 			worker.manager.mids.Append(&testMiddleware{})
+			ctx := context.Background()
 
-			go worker.work(messages)
+			go worker.work(ctx, messages)
 			messages <- message
 
 			<-processed
 			c.Expect(confirm(manager), Equals, message)
 			c.Expect(testMiddlewareCalled, IsTrue)
 
-			worker.quit()
+			worker.quit(ctx)
 
 			worker.manager.mids = defaultMiddlewares
 		})
 
 		c.Specify("doesn't confirm if middleware cancels acknowledgement", func() {
 			worker.manager.mids.Append(&failMiddleware{})
+			ctx := context.Background()
 
-			go worker.work(messages)
+			go worker.work(ctx, messages)
 			messages <- message
 
 			<-processed
 			c.Expect(confirm(manager), IsNil)
 			c.Expect(failMiddlewareCalled, IsTrue)
 
-			worker.quit()
+			worker.quit(ctx)
 
 			worker.manager.mids = defaultMiddlewares
 		})
@@ -128,12 +133,14 @@ func WorkerSpec(c gospec.Context) {
 			manager := newManager(config, "myqueue", panicJob, 1)
 			worker := newWorker(manager)
 
-			go worker.work(messages)
+			ctx := context.Background()
+
+			go worker.work(ctx, messages)
 			messages <- message
 
 			c.Expect(confirm(manager), Equals, message)
 
-			worker.quit()
+			worker.quit(ctx)
 		})
 	})
 }
@@ -141,6 +148,7 @@ func WorkerSpec(c gospec.Context) {
 func BenchmarkWorkMockedRedis(b *testing.B) {
 	acknowledged := make(chan string)
 	queue := make(chan interface{})
+	ctx := context.Background()
 
 	const msgString = `{"jid":"x","queue":"namespacy:queue:name:ok","args":{"foops":["hello"]},"enqueued_at":"100123917231"}`
 
@@ -173,7 +181,7 @@ func BenchmarkWorkMockedRedis(b *testing.B) {
 	}
 
 	w.Process("q", job, 1)
-	w.Start()
+	w.Start(ctx)
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {

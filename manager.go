@@ -1,6 +1,7 @@
 package workers
 
 import (
+	"context"
 	"strings"
 	"sync"
 )
@@ -20,25 +21,25 @@ type manager struct {
 	*sync.WaitGroup
 }
 
-func (m *manager) start() {
+func (m *manager) start(ctx context.Context) {
 	m.Add(1)
-	m.loadWorkers()
-	go m.manage()
+	m.loadWorkers(ctx)
+	go m.manage(ctx)
 }
 
-func (m *manager) prepareForQuit() {
+func (m *manager) prepareForQuit(ctx context.Context) {
 	if !m.fetch.Closed() {
 		m.fetch.Close()
 	}
 }
 
-func (m *manager) quit() {
+func (m *manager) quit(ctx context.Context) {
 	Logger.Println("quitting queue", m.queueName(), "(waiting for", m.processing(), "/", len(m.workers), "workers).")
-	m.prepareForQuit()
+	m.prepareForQuit(ctx)
 
 	m.workersM.Lock()
 	for _, worker := range m.workers {
-		worker.quit()
+		worker.quit(ctx)
 	}
 	m.workersM.Unlock()
 
@@ -50,15 +51,15 @@ func (m *manager) quit() {
 	m.Done()
 }
 
-func (m *manager) manage() {
+func (m *manager) manage(ctx context.Context) {
 	Logger.Println("processing queue", m.queueName(), "with", m.concurrency, "workers.")
 
-	go m.fetch.Fetch()
+	go m.fetch.Fetch(ctx)
 
 	for {
 		select {
 		case message := <-m.confirm:
-			m.fetch.Acknowledge(message)
+			m.fetch.Acknowledge(ctx, message)
 		case <-m.stop:
 			m.exit <- true
 			break
@@ -66,11 +67,11 @@ func (m *manager) manage() {
 	}
 }
 
-func (m *manager) loadWorkers() {
+func (m *manager) loadWorkers(ctx context.Context) {
 	m.workersM.Lock()
 	for i := 0; i < m.concurrency; i++ {
 		m.workers[i] = newWorker(m)
-		m.workers[i].start()
+		m.workers[i].start(ctx)
 	}
 	m.workersM.Unlock()
 }
@@ -78,7 +79,7 @@ func (m *manager) loadWorkers() {
 func (m *manager) processing() (count int) {
 	m.workersM.Lock()
 	for _, worker := range m.workers {
-		if worker.processing() {
+		if worker.isProcessing() {
 			count++
 		}
 	}
