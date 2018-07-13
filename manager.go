@@ -28,9 +28,7 @@ func (m *manager) start(ctx context.Context) {
 }
 
 func (m *manager) prepareForQuit(ctx context.Context) {
-	if !m.fetch.Closed() {
-		m.fetch.Close()
-	}
+	m.fetch.Close()
 }
 
 func (m *manager) quit(ctx context.Context) {
@@ -85,6 +83,13 @@ func (m *manager) processing() (count int) {
 	}
 	m.workersM.Unlock()
 	return
+}
+
+func (m *manager) FinishedWork() {
+	select {
+	case m.fetch.FinishedWork() <- true:
+	default:
+	}
 }
 
 func (m *manager) queueName() string {
